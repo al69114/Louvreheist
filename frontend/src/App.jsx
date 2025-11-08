@@ -8,6 +8,11 @@ import ThiefLogin from './pages/ThiefLogin'
 import ThiefDashboard from './pages/ThiefDashboard'
 import axios from 'axios'
 import vaultLogo from '/images/xlogo.png'
+import Buyer from './pages/Buyer'
+import LiveFeed from './pages/LiveFeed'
+import Seller from './pages/seller'
+
+
 
 function Header({ anonymousId, setAnonymousId }) {
   const location = useLocation()
@@ -77,6 +82,7 @@ function Header({ anonymousId, setAnonymousId }) {
           >
             Transactions
           </Link>
+         
           <Link
             to="/admin"
             className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
@@ -107,11 +113,18 @@ function App() {
           <Route path="/auctions" element={<Auctions anonymousId={anonymousId} />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/livefeed" element={<LiveFeed />} />
 
           {/* Thief Portal Routes */}
           <Route path="/thief/login" element={<ThiefLogin />} />
           <Route path="/thief/register" element={<ThiefLogin />} />
           <Route path="/thief/dashboard" element={<ThiefDashboard />} />
+
+          {/* Buyer Portal Route */}
+          <Route path="/buyer" element={<Buyer />} />
+
+          {/* Seller Portal Route */}
+          <Route path="/seller" element={<Seller />} />
         </Routes>
       </div>
     </Router>
