@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
 import Home from './pages/Home'
 import Auctions from './pages/Auctions'
-import Mixer from './pages/Mixer'
-import MintNFT from './pages/MintNFT'
+import Transactions from './pages/completedTransactions'
 import Admin from './pages/Admin'
 import ThiefLogin from './pages/ThiefLogin'
 import ThiefDashboard from './pages/ThiefDashboard'
 import axios from 'axios'
 import vaultLogo from '/images/xlogo.png'
+import Buyer from './pages/Buyer'
+import LiveFeed from './pages/LiveFeed'
+import Seller from './pages/seller'
+
+
 
 function Header({ anonymousId, setAnonymousId }) {
   const location = useLocation()
@@ -38,7 +42,7 @@ function Header({ anonymousId, setAnonymousId }) {
       <header className="header">
         <div className="header-content">
           <div className="logo">
-            <h1>🕵️ XCROW - THIEF PORTAL</h1>
+            <h1>🕵️ XCRO - THIEF PORTAL</h1>
             <div className="onion-badge">🧅 shadow7x2k9mq4.onion</div>
           </div>
         </div>
@@ -52,7 +56,7 @@ function Header({ anonymousId, setAnonymousId }) {
         <div className="logo">
           <Link to="/" className="logo-link">
             <img src={vaultLogo} alt="Vault Logo" className="navbar-logo" />
-            <h1>CROW</h1>
+            <h1>CRO</h1>
           </Link>
           <div className="onion-badge">Admin Portal</div>
         </div>
@@ -71,18 +75,14 @@ function Header({ anonymousId, setAnonymousId }) {
           >
             Auctions
           </Link>
+          
           <Link
-            to="/mint"
-            className={`nav-link ${location.pathname === '/mint' ? 'active' : ''}`}
+            to="/transactions"
+            className={`nav-link ${location.pathname === '/transactions' ? 'active' : ''}`}
           >
-            Mint NFT
+            Transactions
           </Link>
-          <Link
-            to="/mixer"
-            className={`nav-link ${location.pathname === '/mixer' ? 'active' : ''}`}
-          >
-            Crypto Mixer
-          </Link>
+         
           <Link
             to="/admin"
             className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
@@ -111,14 +111,20 @@ function App() {
           {/* Admin Portal Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/auctions" element={<Auctions anonymousId={anonymousId} />} />
-          <Route path="/mint" element={<MintNFT anonymousId={anonymousId} />} />
-          <Route path="/mixer" element={<Mixer />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/livefeed" element={<LiveFeed />} />
 
           {/* Thief Portal Routes */}
           <Route path="/thief/login" element={<ThiefLogin />} />
           <Route path="/thief/register" element={<ThiefLogin />} />
           <Route path="/thief/dashboard" element={<ThiefDashboard />} />
+
+          {/* Buyer Portal Route */}
+          <Route path="/buyer" element={<Buyer />} />
+
+          {/* Seller Portal Route */}
+          <Route path="/seller" element={<Seller />} />
         </Routes>
       </div>
     </Router>
