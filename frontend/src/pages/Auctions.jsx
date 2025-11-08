@@ -72,7 +72,7 @@ export default function Auctions({ anonymousId }) {
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1>🔨 Active Auctions</h1>
+        <h1> Active Auctions</h1>
         <button className="btn btn-danger" onClick={() => setShowCreateForm(!showCreateForm)}>
           {showCreateForm ? 'Cancel' : '+ Create Auction'}
         </button>

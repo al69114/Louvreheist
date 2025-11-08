@@ -21,7 +21,7 @@ export default function Home() {
     <div className="container">
       <div className="text-center mb-2">
         <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-          Welcome to The Shadow Mint
+          Welcome to XCROW
         </h1>
         <p style={{ fontSize: '1.3rem', color: '#888' }}>
           The world's first anonymous e-fencing platform for high-value items
@@ -32,7 +32,7 @@ export default function Home() {
         <h2 style={{ marginBottom: '1rem', color: '#ff0055' }}>⚠️ DISCLAIMER</h2>
         <p style={{ lineHeight: '1.8', color: '#00cc33' }}>
           This is a <strong>hackathon project for educational purposes only</strong>.
-          The Shadow Mint demonstrates blockchain technology, encryption, and privacy concepts
+          XCROW demonstrates blockchain technology, encryption, and privacy concepts
           in the context of the Louvre Heist challenge. No actual illegal activity is endorsed or supported.
         </p>
       </div>
@@ -43,7 +43,7 @@ export default function Home() {
             🎯 Our Mission
           </h3>
           <p style={{ color: '#888', lineHeight: '1.8' }}>
-            You can't sell crown jewels on eBay. The Shadow Mint provides a secure,
+            You can't sell crown jewels on eBay. XCROW provides a secure,
             anonymous platform for high-value transactions using cutting-edge blockchain
             technology and cryptographic privacy.
           </p>
