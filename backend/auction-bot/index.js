@@ -34,6 +34,35 @@ app.get('/health', (req, res) => {
   res.status(200).send('Bot and API are alive!');
 });
 
+//api end point section to check code validity
+
+// Called by your *main website backend* to validate a code
+app.get('/check-code/:code', async (req, res) => {
+  const { code } = req.params;
+  
+  try {
+    const result = await pool.query(
+      'SELECT request_type FROM requests WHERE code = $1 AND status = $2',
+      [code, 'approved']
+    );
+    
+    if (result.rows.length > 0) {
+      // Code is valid and approved!
+      res.status(200).json({ 
+        valid: true, 
+        type: result.rows[0].request_type // 'seller' or 'buyer'
+      });
+    } else {
+      // Code does not exist or is not approved
+      res.status(404).json({ valid: false, message: 'Invalid or expired code' });
+    }
+  } catch (err) {
+    console.error('API Error /check-code:', err.message);
+    res.status(500).json({ valid: false, message: 'Server error' });
+  }
+});
+
+
 // --- API ENDPOINTS ---
 
 // NEW: Updated to handle description and photos
@@ -316,3 +345,4 @@ bot.on('callback_query', async (callbackQuery) => {
     }
   }
 });
+
