@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
 import Home from './pages/Home'
 import Auctions from './pages/Auctions'
-import Mixer from './pages/Mixer'
+import Transactions from './pages/completedTransactions'
 import Admin from './pages/Admin'
 import ThiefLogin from './pages/ThiefLogin'
 import ThiefDashboard from './pages/ThiefDashboard'
@@ -72,10 +72,10 @@ function Header({ anonymousId, setAnonymousId }) {
           </Link>
           
           <Link
-            to="/mixer"
-            className={`nav-link ${location.pathname === '/mixer' ? 'active' : ''}`}
+            to="/transactions"
+            className={`nav-link ${location.pathname === '/transactions' ? 'active' : ''}`}
           >
-            Crypto Mixer
+            Transactions
           </Link>
           <Link
             to="/admin"
@@ -105,7 +105,7 @@ function App() {
           {/* Admin Portal Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/auctions" element={<Auctions anonymousId={anonymousId} />} />
-          <Route path="/mixer" element={<Mixer />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/admin" element={<Admin />} />
 
           {/* Thief Portal Routes */}
