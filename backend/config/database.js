@@ -6,6 +6,8 @@ const db = {
   mixer_transactions: [],
   thieves: [], // New: authenticated thieves
   invite_links: [], // New: invite links for thieves
+  buyers: [], // New: authenticated buyers
+  transactions: [], // New: transaction records
 
   _autoIncrement: {
     users: 1,
@@ -13,7 +15,9 @@ const db = {
     bids: 1,
     mixer_transactions: 1,
     thieves: 1,
-    invite_links: 1
+    invite_links: 1,
+    buyers: 1,
+    transactions: 1
   },
 
   prepare(query) {
@@ -46,7 +50,7 @@ const db = {
             scan_3d_url: params[8],
             ends_at: params[9],
             current_price: params[10],
-            status: 'active',
+            status: 'queued',
             created_at: new Date().toISOString()
           };
           self.auction_items.push(auction);
@@ -95,22 +99,66 @@ const db = {
           return { lastInsertRowid: thief.id };
         }
 
+        // INSERT buyer
+        if (query.includes('INSERT INTO buyers')) {
+          const buyer = {
+            id: self._autoIncrement.buyers++,
+            username: params[0],
+            password_hash: params[1],
+            invite_code: params[2],
+            real_name_encrypted: null,
+            codename: null,
+            created_at: new Date().toISOString()
+          };
+          self.buyers.push(buyer);
+          return { lastInsertRowid: buyer.id };
+        }
+
         // INSERT invite_link
         if (query.includes('INSERT INTO invite_links')) {
           const link = {
             id: self._autoIncrement.invite_links++,
             code: params[0],
-            used: params[1] || false,
+            password: params[1], // Simple password for thief to use
+            used: params[2] || false,
+            role: params[3] || 'thief',
             created_at: new Date().toISOString()
           };
           self.invite_links.push(link);
           return { lastInsertRowid: link.id };
         }
 
+        // INSERT transaction
+        if (query.includes('INSERT INTO transactions')) {
+          const transaction = {
+            id: self._autoIncrement.transactions++,
+            buyer_id: params[0],
+            auction_id: params[1],
+            item_name: params[2],
+            amount: params[3],
+            wallet_address: params[4],
+            transaction_hash: params[5],
+            status: params[6] || 'confirmed',
+            created_at: params[7] || new Date().toISOString()
+          };
+          self.transactions.push(transaction);
+          return { lastInsertRowid: transaction.id };
+        }
+
         // UPDATE operations
         if (query.includes('UPDATE auction_items SET current_price')) {
           const auction = self.auction_items.find(a => a.id === params[1]);
           if (auction) auction.current_price = params[0];
+        }
+
+        if (query.includes('UPDATE auction_items SET status')) {
+          const auction = self.auction_items.find(a => a.id === params[1]);
+          if (auction) auction.status = params[0];
+        }
+
+        if (query.includes('UPDATE auction_items SET ends_at')) {
+          const auction = self.auction_items.find(a => a.id === params[1]);
+          if (auction) auction.ends_at = params[0];
         }
 
         if (query.includes('UPDATE mixer_transactions')) {
@@ -124,6 +172,14 @@ const db = {
         if (query.includes('UPDATE invite_links SET used')) {
           const link = self.invite_links.find(l => l.code === params[1]);
           if (link) link.used = true;
+        }
+
+        if (query.includes('UPDATE buyers SET real_name_encrypted')) {
+          const buyer = self.buyers.find(b => b.id === params[2]);
+          if (buyer) {
+            buyer.real_name_encrypted = params[0];
+            buyer.codename = params[1];
+          }
         }
 
         return {};
@@ -147,8 +203,20 @@ const db = {
           return self.thieves.find(t => t.id === params[0]) || null;
         }
 
+        if (query.includes('FROM buyers WHERE invite_code')) {
+          return self.buyers.find(b => b.invite_code === params[0]) || null;
+        }
+
+        if (query.includes('FROM buyers WHERE id')) {
+          return self.buyers.find(b => b.id === params[0]) || null;
+        }
+
         if (query.includes('FROM invite_links WHERE code')) {
           return self.invite_links.find(l => l.code === params[0]) || null;
+        }
+
+        if (query.includes('FROM invite_links WHERE password')) {
+          return self.invite_links.find(l => l.password === params[0]) || null;
         }
 
         if (query.includes('COUNT(*) as count FROM bids WHERE auction_id')) {
@@ -194,8 +262,16 @@ const db = {
           }));
         }
 
+        if (query.includes('FROM invite_links WHERE role')) {
+          return self.invite_links.filter(l => l.role === params[0]);
+        }
+
         if (query.includes('FROM invite_links')) {
           return self.invite_links;
+        }
+
+        if (query.includes('FROM buyers')) {
+          return self.buyers;
         }
 
         return [];

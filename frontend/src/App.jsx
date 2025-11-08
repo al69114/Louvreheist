@@ -50,6 +50,34 @@ function Header({ anonymousId, setAnonymousId }) {
     )
   }
 
+  // Seller portal header
+  if (location.pathname.startsWith('/seller')) {
+    return (
+      <header className="header">
+        <div className="header-content">
+          <div className="logo">
+            <h1>💼 XCRO - SELLER PORTAL</h1>
+            <div className="onion-badge">⚠️ xcr0dark.onion</div>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
+  // Buyer portal header
+  if (location.pathname.startsWith('/buyer')) {
+    return (
+      <header className="header">
+        <div className="header-content">
+          <div className="logo">
+            <h1>🛒 XCRO - BUYER PORTAL</h1>
+            <div className="onion-badge">🔐 buyerdark.onion</div>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
   return (
     <header className="header">
       <div className="header-content">

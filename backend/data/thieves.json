@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "username": "thief_6909a0a6273ba2e3",
+    "created_at": "2025-11-08T18:16:17.660Z",
+    "recorded_at": "2025-11-08T18:16:17.662Z",
+    "invite_code_last4": "3e29",
+    "last_seen_at": "2025-11-08T22:19:07.756Z"
+  },
+  {
+    "id": 2,
+    "username": "thief_1bfce007010bb402",
+    "created_at": "2025-11-08T21:45:28.199Z",
+    "recorded_at": "2025-11-08T21:45:28.199Z",
+    "invite_code_last4": "2e54",
+    "last_seen_at": "2025-11-08T21:45:28.200Z"
+  },
+  {
+    "id": 3,
+    "username": "thief_b3955e79cff88330",
+    "created_at": "2025-11-08T21:57:01.288Z",
+    "recorded_at": "2025-11-08T21:57:01.288Z",
+    "invite_code_last4": "63f0",
+    "last_seen_at": "2025-11-08T21:57:01.290Z"
+  },
+  {
+    "id": 4,
+    "username": "thief_ace16ce786b0014f",
+    "created_at": "2025-11-08T22:09:19.856Z",
+    "recorded_at": "2025-11-08T22:09:19.857Z",
+    "invite_code_last4": "2045",
+    "last_seen_at": "2025-11-08T22:09:19.859Z"
+  }
+]

@@ -1,17 +1,26 @@
 // src/pages/CompletedTransactions.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 
 export default function CompletedTransactions() {
-  // single placeholder transaction (crypto + tx id)
-  const placeholderTx = {
-    itemName: "Renaissance Diamond ",
-    amountEth: 12.3456, // ETH
-    txHash: "0x9f3ab7d1c4e2a5b6c7d8e9f0011223345566778899aabbccddeeff0011223344",
-    timestamp: new Date().toLocaleString(),
-    status: "Confirmed",
-  };
-
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      const response = await axios.get('/api/transaction/all');
+      setTransactions(response.data.transactions);
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const copyHash = async (hash) => {
     try {
@@ -30,6 +39,14 @@ export default function CompletedTransactions() {
 
   const shortHash = (h) => `${h.slice(0, 10)}...${h.slice(-8)}`;
 
+  if (loading) {
+    return (
+      <div className="container transactions-page">
+        <div className="spinner" style={{ margin: '5rem auto' }}></div>
+      </div>
+    );
+  }
+
   return (
     <div className="container transactions-page">
       <h1 className="transactions-title">Completed Transactions</h1>
@@ -37,49 +54,58 @@ export default function CompletedTransactions() {
         Internal ledger — archived record from the last successful operation.
       </p>
 
-      <div className="transactions-grid">
-        <div className="transaction-card">
-          <div className="tx-row">
-            <h3 className="item-name">{placeholderTx.itemName}</h3>
-            <div className={`status-badge status-${placeholderTx.status.toLowerCase()}`}>
-              {placeholderTx.status}
-            </div>
-          </div>
-
-          <p className="tx-line">
-            <span className="label">Amount:</span>{" "}
-            <span className="value">
-              {formatEth(placeholderTx.amountEth)} <span className="eth-symbol">ETH</span>
-            </span>
-          </p>
-
-          <p className="tx-line">
-            <span className="label">Transaction ID:</span>{" "}
-            <code className="tx-hash">{shortHash(placeholderTx.txHash)}</code>
-            <button
-              className="copy-btn"
-              onClick={() => copyHash(placeholderTx.txHash)}
-              title="Copy full transaction hash"
-              aria-label="Copy transaction hash"
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <a
-              className="explorer-link"
-              href={`#`} // replace with real explorer URL if desired
-              onClick={(e) => e.preventDefault()}
-              title="View on block explorer (placeholder)"
-            >
-              View
-            </a>
-          </p>
-
-          <p className="tx-line">
-            <span className="label">Timestamp:</span>{" "}
-            <span className="value">{placeholderTx.timestamp}</span>
-          </p>
+      {transactions.length === 0 ? (
+        <div className="card text-center" style={{ marginTop: '3rem' }}>
+          <h3>No transactions yet</h3>
+          <p className="text-muted">Completed transactions will appear here.</p>
         </div>
-      </div>
+      ) : (
+        <div className="transactions-grid">
+          {transactions.map((tx) => (
+            <div key={tx.id} className="transaction-card">
+              <div className="tx-row">
+                <h3 className="item-name">{tx.item_name}</h3>
+                <div className={`status-badge status-${tx.status.toLowerCase()}`}>
+                  {tx.status}
+                </div>
+              </div>
+
+              <p className="tx-line">
+                <span className="label">Amount:</span>{" "}
+                <span className="value">
+                  {formatEth(tx.amount)} <span className="eth-symbol">ETH</span>
+                </span>
+              </p>
+
+              <p className="tx-line">
+                <span className="label">Transaction ID:</span>{" "}
+                <code className="tx-hash">{shortHash(tx.transaction_hash)}</code>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyHash(tx.transaction_hash)}
+                  title="Copy full transaction hash"
+                  aria-label="Copy transaction hash"
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <a
+                  className="explorer-link"
+                  href={`#`}
+                  onClick={(e) => e.preventDefault()}
+                  title="View on block explorer (placeholder)"
+                >
+                  View
+                </a>
+              </p>
+
+              <p className="tx-line">
+                <span className="label">Timestamp:</span>{" "}
+                <span className="value">{new Date(tx.created_at).toLocaleString()}</span>
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

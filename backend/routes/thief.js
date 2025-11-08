@@ -4,8 +4,21 @@ const { db } = require('../config/database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { upsertThiefRecord } = require('../utils/fileStore');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'shadow-mint-secret-key-hackathon-2025';
+
+/**
+ * Generate a simple, readable password
+ */
+function generateSimplePassword() {
+  // Generate a password with format: word-word-number (e.g., shadow-mint-2845)
+  const words = ['shadow', 'mint', 'vault', 'heist', 'ghost', 'raven', 'cobra', 'viper', 'storm', 'night', 'dark', 'steel', 'iron', 'blade', 'cipher'];
+  const word1 = words[Math.floor(Math.random() * words.length)];
+  const word2 = words[Math.floor(Math.random() * words.length)];
+  const number = Math.floor(1000 + Math.random() * 9000); // 4 digit number
+  return `${word1}-${word2}-${number}`;
+}
 
 /**
  * Generate a unique invite link for a thief
@@ -13,20 +26,40 @@ const JWT_SECRET = process.env.JWT_SECRET || 'shadow-mint-secret-key-hackathon-2
  */
 router.post('/admin/create-invite', (req, res) => {
   try {
-    // Generate unique invite code
+    // Generate unique invite code and password
     const code = crypto.randomBytes(16).toString('hex');
+    const password = generateSimplePassword();
 
     const stmt = db.prepare(`
-      INSERT INTO invite_links (code, used)
-      VALUES (?, ?)
+      INSERT INTO invite_links (code, password, used)
+      VALUES (?, ?, ?)
     `);
 
-    stmt.run(code, false);
+    // Note: in-memory DB supports a role param even if the SQL doesn't explicitly show it
+    stmt.run(code, password, false, 'thief');
+
+    // Get the frontend host from request headers
+    // Vite proxy sets these headers, or use referer as fallback
+    const protocol = req.protocol || 'http';
+    let host = req.get('x-forwarded-host') || req.get('referer');
+
+    // If we got a referer, extract just the host part
+    if (host && host.includes('://')) {
+      const url = new URL(host);
+      host = url.host;
+    } else if (!host || host.includes('localhost:5001')) {
+      // Fallback: use localhost:3000 for local dev
+      host = 'localhost:3000';
+    }
+
+    const loginUrl = `${protocol}://${host}/seller`;
 
     res.json({
       success: true,
-      inviteLink: `/thief/register?code=${code}`,
-      code
+      loginUrl: loginUrl,
+      inviteLink: `/seller`, // For frontend display
+      password: password,
+      code: code // For admin reference only
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -38,7 +71,7 @@ router.post('/admin/create-invite', (req, res) => {
  */
 router.get('/admin/invites', (req, res) => {
   try {
-    const links = db.prepare('SELECT * FROM invite_links').all();
+    const links = db.prepare('SELECT * FROM invite_links WHERE role = ?').all('thief');
     res.json({ success: true, links });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -69,14 +102,15 @@ router.get('/verify-invite/:code', (req, res) => {
 });
 
 /**
- * Register new thief (with invite code)
+ * Activate thief account with invite code (auto-registration)
+ * No username/password needed - the invite code IS the password
  */
-router.post('/register', async (req, res) => {
+router.post('/activate', async (req, res) => {
   try {
-    const { username, password, inviteCode } = req.body;
+    const { inviteCode } = req.body;
 
-    if (!username || !password || !inviteCode) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!inviteCode) {
+      return res.status(400).json({ error: 'Invite code required' });
     }
 
     // Verify invite code
@@ -87,42 +121,51 @@ router.post('/register', async (req, res) => {
     }
 
     if (link.used) {
-      return res.status(400).json({ error: 'Invite code already used' });
+      return res.status(400).json({ error: 'This invite code has already been activated' });
     }
 
-    // Check if username already exists
-    const existing = db.prepare('SELECT * FROM thieves WHERE username = ?').get(username);
-    if (existing) {
-      return res.status(400).json({ error: 'Username already taken' });
-    }
+    // Generate unique thief ID (no username needed)
+    const thiefId = 'thief_' + crypto.randomBytes(8).toString('hex');
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Use invite code as the password (hashed)
+    const passwordHash = await bcrypt.hash(inviteCode, 10);
 
-    // Create thief account
+    // Create thief account automatically
     const stmt = db.prepare(`
       INSERT INTO thieves (username, password_hash, invite_code)
       VALUES (?, ?, ?)
     `);
 
-    const result = stmt.run(username, passwordHash, inviteCode);
+    const result = stmt.run(thiefId, passwordHash, inviteCode);
+
+    // Persist thief info to JSON store
+    const createdThief = db.prepare('SELECT * FROM thieves WHERE id = ?').get(result.lastInsertRowid);
+    if (createdThief) {
+      upsertThiefRecord({
+        id: createdThief.id,
+        username: createdThief.username,
+        invite_code: createdThief.invite_code,
+        created_at: createdThief.created_at
+      });
+    }
 
     // Mark invite as used
     db.prepare('UPDATE invite_links SET used = ? WHERE code = ?').run(true, inviteCode);
 
     // Generate JWT token
-    const token = jwt.sign({ id: result.lastInsertRowid, username, role: 'thief' }, JWT_SECRET, {
-      expiresIn: '7d'
+    const token = jwt.sign({ id: result.lastInsertRowid, username: thiefId, role: 'thief' }, JWT_SECRET, {
+      expiresIn: '30d'
     });
 
     res.json({
       success: true,
-      message: 'Account created successfully',
+      message: 'Account activated successfully',
       token,
       thief: {
         id: result.lastInsertRowid,
-        username
-      }
+        thiefId: thiefId
+      },
+      accessCode: inviteCode // Send back for confirmation
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -130,33 +173,74 @@ router.post('/register', async (req, res) => {
 });
 
 /**
- * Login thief
+ * Login or activate thief with password
  */
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Missing credentials' });
+    if (!password) {
+      return res.status(400).json({ error: 'Password required' });
     }
 
-    // Find thief
-    const thief = db.prepare('SELECT * FROM thieves WHERE username = ?').get(username);
+    // Find invite by password
+    const invite = db.prepare('SELECT * FROM invite_links WHERE password = ?').get(password);
+
+    if (!invite || invite.role !== 'thief') {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Check if account already created with this invite
+    let thief = db.prepare('SELECT * FROM thieves WHERE invite_code = ?').get(invite.code);
 
     if (!thief) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      // First time login - create account automatically
+      const thiefId = 'thief_' + crypto.randomBytes(8).toString('hex');
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const stmt = db.prepare(`
+        INSERT INTO thieves (username, password_hash, invite_code)
+        VALUES (?, ?, ?)
+      `);
+
+      const result = stmt.run(thiefId, passwordHash, invite.code);
+
+      // Mark invite as used
+      db.prepare('UPDATE invite_links SET used = ? WHERE code = ?').run(true, invite.code);
+
+      // Persist new thief info to JSON store
+      const createdThief = db.prepare('SELECT * FROM thieves WHERE id = ?').get(result.lastInsertRowid);
+      if (createdThief) {
+        upsertThiefRecord({
+          id: createdThief.id,
+          username: createdThief.username,
+          invite_code: createdThief.invite_code,
+          created_at: createdThief.created_at
+        });
+        thief = createdThief;
+      } else {
+        thief = {
+          id: result.lastInsertRowid,
+          username: thiefId,
+          invite_code: invite.code
+        };
+        upsertThiefRecord(thief);
+      }
     }
 
-    // Verify password
-    const validPassword = await bcrypt.compare(password, thief.password_hash);
-
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+    // Update last seen info for existing thief
+    if (thief && thief.id) {
+      upsertThiefRecord({
+        id: thief.id,
+        username: thief.username,
+        invite_code: thief.invite_code,
+        created_at: thief.created_at
+      });
     }
 
     // Generate JWT token
     const token = jwt.sign({ id: thief.id, username: thief.username, role: 'thief' }, JWT_SECRET, {
-      expiresIn: '7d'
+      expiresIn: '30d'
     });
 
     res.json({
@@ -164,7 +248,7 @@ router.post('/login', async (req, res) => {
       token,
       thief: {
         id: thief.id,
-        username: thief.username
+        thiefId: thief.username
       }
     });
   } catch (error) {

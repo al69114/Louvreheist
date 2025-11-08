@@ -27,6 +27,13 @@ The Shadow Mint now features **two separate portals**:
 - Create and manage their own listings
 - Access: http://localhost:3000/thief/login
 
+### 📧 Email Invite Links to Anyone
+- **NEW**: Invite links work across different computers!
+- Generate link → Email to thief → They register on their computer
+- Works on same WiFi network (no extra setup needed)
+- **See [QUICK_EMAIL_SETUP.md](QUICK_EMAIL_SETUP.md) for 5-minute setup**
+- For remote users (different networks), see [NETWORK_ACCESS_GUIDE.md](NETWORK_ACCESS_GUIDE.md)
+
 **See [DUAL_PORTAL_GUIDE.md](DUAL_PORTAL_GUIDE.md) for complete documentation.**
 
 ## ⚠️ DISCLAIMER
