@@ -418,13 +418,13 @@ body {
 .transactions-subtitle {
   font-size: 1.1rem;
   color: var(--text-muted);
-  margin-bottom: 3rem;
+  margin-bottom: 2.5rem;
 }
 
 .transactions-grid {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   animation: fade-in 1s ease;
 }
 
@@ -435,29 +435,116 @@ body {
   padding: 2rem 2.5rem;
   text-align: left;
   width: 100%;
-  max-width: 600px;
-  box-shadow: 0 0 20px rgba(0, 255, 163, 0.08);
+  max-width: 700px;
+  box-shadow: 0 0 20px rgba(0, 255, 163, 0.06);
   transition: all 0.3s ease;
 }
 
 .transaction-card:hover {
   border-color: var(--text-secondary);
-  box-shadow: 0 0 25px var(--shadow);
+  box-shadow: 0 0 28px var(--shadow);
   transform: translateY(-3px);
 }
 
-.item-name {
-  font-size: 1.6rem;
-  color: var(--text-secondary);
+.tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
-  letter-spacing: 1px;
+}
+
+.item-name {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.status-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+/* simple status colors */
+.status-confirmed {
+  background: rgba(58, 134, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(58, 134, 255, 0.18);
+}
+
+.tx-line {
+  margin: 0.6rem 0;
+  color: #cfcfcf;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .label {
+  color: var(--text-muted);
+  font-family: "Share Tech Mono", monospace;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.eth-symbol {
+  font-family: "Share Tech Mono", monospace;
+  color: #9be7ff;
+  margin-left: 6px;
+  font-weight: 700;
+}
+
+/* transaction hash inline code */
+.tx-hash {
+  background: rgba(255,255,255,0.02);
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  font-family: "Share Tech Mono", monospace;
+  color: #9be7ff;
+  font-size: 0.95rem;
+}
+
+/* small controls */
+.copy-btn {
+  margin-left: 0.6rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: "Share Tech Mono", monospace;
+  transition: background 0.18s, transform 0.12s;
+}
+
+.copy-btn:hover {
+  background: rgba(0,255,163,0.06);
+  transform: translateY(-1px);
+}
+
+.explorer-link {
+  margin-left: 0.8rem;
   color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
   font-family: "Share Tech Mono", monospace;
 }
 
+.explorer-link:hover {
+  text-decoration: underline;
+}
+
+/* fade-in */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
