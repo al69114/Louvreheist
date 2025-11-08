@@ -43,11 +43,11 @@ export default function MintNFT({ anonymousId }) {
 
   return (
     <div className="container">
-      <h1 style={{ marginBottom: '2rem' }}>🎨 Mint Bragging Rights NFT</h1>
+      <h1 style={{ marginBottom: '2rem' }}> Mint Bragging Rights NFT</h1>
 
       <div className="card mb-2" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)' }}>
         <h3 style={{ marginBottom: '1rem', color: '#00ff41' }}>
-          💎 What are "Bragging Rights" NFTs?
+          What are "Bragging Rights" NFTs?
         </h3>
         <p style={{ color: '#888', lineHeight: '1.8', marginBottom: '1rem' }}>
           Traditional stolen goods can be traced and recovered. Our solution is revolutionary:
@@ -107,7 +107,7 @@ export default function MintNFT({ anonymousId }) {
 
           <div className="card" style={{ background: '#0a0a0a', marginBottom: '1.5rem' }}>
             <h4 style={{ marginBottom: '0.5rem', fontSize: '1rem' }}>
-              🔐 Destruction Proof
+              Destruction Proof
             </h4>
             <p className="text-muted" style={{ fontSize: '0.9rem' }}>
               A cryptographic hash will be generated to prove the original was destroyed.

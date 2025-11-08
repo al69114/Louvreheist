@@ -80,7 +80,7 @@ export default function Home() {
 
       <div className="card mt-2" style={{ background: '#1a1a1a' }}>
         <h3 style={{ marginBottom: '1rem', fontSize: '1.5rem' }}>
-          🎨 The "Bragging Rights" Concept
+           The "Bragging Rights" Concept
         </h3>
         <p style={{ color: '#888', lineHeight: '1.8', marginBottom: '1rem' }}>
           Traditional stolen goods can be tracked. Our solution? <strong style={{ color: '#00ff41' }}>

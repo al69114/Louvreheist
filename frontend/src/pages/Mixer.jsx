@@ -55,7 +55,7 @@ export default function Mixer() {
 
       <div className="card mb-2" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)', border: '2px solid #00ff41' }}>
         <h3 style={{ marginBottom: '1rem', color: '#00ff41' }}>
-          🔒 How the Mixer Works
+           How the Mixer Works
         </h3>
         <p style={{ color: '#888', lineHeight: '1.8', marginBottom: '1rem' }}>
           Cryptocurrency transactions are traceable on the blockchain. Our mixer breaks the connection
@@ -68,7 +68,7 @@ export default function Mixer() {
           <li>Paying out "clean" crypto to your specified address</li>
         </ol>
         <p style={{ color: '#ff0055', lineHeight: '1.8', marginTop: '1rem', fontWeight: 'bold' }}>
-          ⚠️ Service fee: 2% of transaction amount
+          Service fee: 2% of transaction amount
         </p>
       </div>
 

@@ -8,6 +8,7 @@ import Admin from './pages/Admin'
 import ThiefLogin from './pages/ThiefLogin'
 import ThiefDashboard from './pages/ThiefDashboard'
 import axios from 'axios'
+import vaultLogo from '/images/vaultimage.jpg'
 
 function Header({ anonymousId, setAnonymousId }) {
   const location = useLocation()
@@ -49,9 +50,14 @@ function Header({ anonymousId, setAnonymousId }) {
     <header className="header">
       <div className="header-content">
         <div className="logo">
-          <h1>🕵️ THE SHADOW MINT</h1>
-          <div className="onion-badge">🧅 Admin Portal</div>
+          <Link to="/" className="logo-link">
+            <img src={vaultLogo} alt="Vault Logo" className="navbar-logo" />
+            <h1>THE SHADOW MINT</h1>
+          </Link>
+          <div className="onion-badge">Admin Portal</div>
         </div>
+
+
         <nav className="nav">
           <Link
             to="/"
