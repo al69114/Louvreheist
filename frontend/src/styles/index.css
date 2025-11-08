@@ -312,3 +312,91 @@ body {
   0% { background-position: 0% 0%; }
   100% { background-position: 100% 100%; }
 }
+
+
+/* ===== HOME PAGE ===== */
+.home-wrapper {
+  padding-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3rem;
+}
+
+/* TITLE + TAGLINE */
+.home-hero {
+  text-align: center;
+  animation: fade-in 1.5s ease;
+}
+
+.home-title {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 5rem;
+  letter-spacing: 4px;
+  color: var(--text-secondary);
+  text-shadow: 0 0 10px var(--text-secondary), 0 0 25px rgba(0, 255, 163, 0.3);
+  animation: flicker 3s infinite;
+}
+
+.home-tagline {
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  max-width: 700px;
+  margin: 1rem auto 0;
+  line-height: 1.6;
+  text-shadow: 0 0 10px rgba(0, 255, 163, 0.05);
+}
+
+/* MISSION STRIP */
+.home-mission {
+  width: 100%;
+  background: linear-gradient(90deg, #0f0f0f 0%, #1a1a1a 100%);
+  border: 1px solid var(--border);
+  padding: 3rem 4rem;
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 255, 163, 0.05);
+  text-align: center;
+  animation: slide-in 1s ease;
+}
+
+.mission-title {
+  font-family: "Share Tech Mono", monospace;
+  color: var(--accent);
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 0 15px rgba(255, 46, 99, 0.4);
+}
+
+.mission-text {
+  font-size: 1.2rem;
+  color: #ccc;
+  max-width: 900px;
+  margin: 0 auto;
+  line-height: 1.8;
+}
+
+/* STATS LINE */
+.home-stats {
+  text-align: center;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-top: 2rem;
+  opacity: 0.9;
+}
+
+/* ANIMATIONS */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: 0.7; }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,54 +1,65 @@
-import React, { useEffect, useState } from 'react'
-import axios from 'axios'
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
 export default function Home() {
-  const [stats, setStats] = useState(null)
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetchStats()
-  }, [])
+    fetchStats();
+  }, []);
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/api/mixer/stats')
-      setStats(response.data.stats)
+      const response = await axios.get("/api/mixer/stats");
+      setStats(response.data.stats);
     } catch (error) {
-      console.error('Failed to fetch stats:', error)
+      console.error("Failed to fetch stats:", error);
     }
-  }
+  };
 
   return (
-    <div className="container">
-      <div className="text-center mb-2">
-        <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-          Welcome to XCRO
-        </h1>
-        <p style={{ fontSize: '1.3rem', color: '#888' }}>
-          Platform for black market auctions. beware of lies
+    <div className="container home-wrapper">
+      {/* TITLE + TAGLINE */}
+      <div className="home-hero">
+        <h1 className="home-title">XCRO</h1>
+        <p className="home-tagline">
+          The world’s least legal auction platform.
+          <br />
         </p>
       </div>
 
-     
+      {/* WIDE MISSION STRIP */}
+      <section className="home-mission">
+        <h2 className="mission-title"> Our Totally Honest Mission</h2>
+        <p className="mission-text">
+          Born from silence and necessity, XCRO deals in what the world hides.
+          Art, information, reputation — everything has a price here.
+          <br /><br />
+           <em>“Take quietly. Leave nothing.”</em>
+          <br />
+          <br />
+          Every transaction is encrypted, anonymous, and slightly terrifying.
+          Bid fast, trust no one, and remember, the house always wins.
+        </p>
+      </section>
 
-      <div className="grid mt-2">
-        <div className="card">
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.5rem' }}>
-            🎯 Our Mission
-          </h3>
-          <p style={{ color: '#888', lineHeight: '1.8' }}>
-            Contribute to the black market economy and improve lives of those who break the law by providing a secure, anonymous auction platform
+      {/* OPTIONAL SYSTEM STATS */}
+      <div className="home-stats">
+        {stats ? (
+          <p>
+            <span className="text-accent">Active Auctions:</span>{" "}
+            {stats.auctions || "???"} &nbsp;|&nbsp;
+            <span className="text-accent">Anonymous Users:</span>{" "}
+            {stats.users || "classified"} &nbsp;|&nbsp;
+            <span className="text-accent">Server Uptime:</span>{" "}
+            {stats.uptime || "unstable"}%
           </p>
-        </div>
-
-       
-
-        
+        ) : (
+          <p className="text-muted">
+            Establishing secure tunnel... please don’t trace this connection.
+          </p>
+        )}
       </div>
-
-      
-
-  
-     
     </div>
-  )
+  );
 }
