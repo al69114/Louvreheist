@@ -60,7 +60,7 @@ export default function Admin() {
 
       {/* Generate Invite Links */}
       <div className="card mb-2">
-        <h2 style={{ marginBottom: '1rem' }}>🔗 Generate Thief Invite Links</h2>
+        <h2 style={{ marginBottom: '1rem' }}>🔗 Generate Seller Invite Links</h2>
         <p className="text-muted" style={{ marginBottom: '1.5rem' }}>
           Create unique invite links for new thieves to join the platform.
         </p>
