@@ -4,10 +4,11 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/Program Files (x86)/Arduino/hardware/arduino/avr/cores/arduino",
-                "C:/Program Files (x86)/Arduino/hardware/arduino/avr/variants/standard",
-                "C:/Program Files (x86)/Arduino/libraries/**",
-                "C:/Users/legok/Documents/Arduino/libraries/**"
+                "C:/Users/legok/.platformio/packages/framework-arduino-avr/cores/arduino",
+                "C:/Users/legok/.platformio/packages/framework-arduino-avr/variants/standard",
+                "C:/Users/legok/.platformio/packages/framework-arduino-avr/libraries/**",
+                "C:/Users/legok/Documents/Arduino/libraries/**",
+                "C:/Users/legok/.platformio/packages/toolchain-atmelavr/avr/include"
             ],
             "defines": [
                 "_DEBUG",
@@ -18,7 +19,7 @@
                 "F_CPU=16000000L"
             ],
             "windowsSdkVersion": "10.0.19041.0",
-            "compilerPath": "C:/Program Files (x86)/Arduino/hardware/tools/avr/bin/avr-g++.exe",
+            "compilerPath": "C:/Users/legok/.platformio/packages/toolchain-atmelavr/bin/avr-g++.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-gcc-x86"

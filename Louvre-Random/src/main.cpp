@@ -1,308 +1,243 @@
+#include <EEPROM.h>
 #include <Arduino.h>
-#include <ctype.h>
 
-/**
- * EscrowController_SerialTest_Working.ino
- *
- * Arduino Uno acts as an escrow agent in an anonymous-auction demo.
- * Now works reliably in Serial Monitor: type one letter and press Enter.
- *
- * Commands:
- *   b - Buyer confirms purchase
- *   f - Funds deposited
- *   o - Ownership verified
- *   a - Arbiter approves (release to seller)
- *   r - Arbiter rejects (refund buyer)
- */
+#define STATUS_LED 13
+#define RELEASE_PIN 9
+#define MAX_AUCTIONS 5
+#define AUCTION_ID_LEN 12
+#define TOKEN_LEN 32 // 32 bytes (64 hex chars)
 
-// ------------------------------------------------------------
-// ENUMS & STRUCTS
-// ------------------------------------------------------------
-enum EscrowState {
-  WAITING_FOR_BUYER_CONFIRMATION,
-  WAITING_FOR_FUNDS,
-  WAITING_FOR_OWNERSHIP_VERIFICATION,
-  ARBITER_REVIEW,
-  RELEASED,
-  CANCELLED
+// Each entry occupies 1 + 12 + 32 + 2 = 47 bytes, padded to 48
+#define ENTRY_SIZE 48
+
+struct Entry {
+  uint8_t used;                 // 0 = free, 1 = used
+  char auctionId[AUCTION_ID_LEN + 1];
+  uint8_t token[TOKEN_LEN];
+  uint16_t crc;
 };
 
-struct Button {
-  uint8_t pin;
-  bool lastPressed;
-};
+Entry entryBuffer;
 
-// ------------------------------------------------------------
-// CONSTANTS
-// ------------------------------------------------------------
-const uint32_t salePriceCents = 250000;               // $2,500.00 example
-const unsigned long arbiterDecisionWindow = 2UL * 60UL * 1000UL;  // 2-minute window
+// ----------------------------------------------------
+// CRC helper
+// ----------------------------------------------------
+uint16_t computeCRC(uint8_t *data, uint16_t len) {
+  uint16_t crc = 0xFFFF;
+  for (int i = 0; i < len; i++) {
+    crc ^= (uint16_t)data[i] << 8;
+    for (int j = 0; j < 8; j++) {
+      if (crc & 0x8000)
+        crc = (crc << 1) ^ 0x1021;
+      else
+        crc <<= 1;
+    }
+  }
+  return crc;
+}
 
-// --- Input pins (active-low buttons) ---
-Button buyerConfirmButton{2, false};
-Button fundsDepositedButton{3, false};
-Button ownershipVerifiedButton{4, false};
-Button arbiterApproveButton{5, false};
-Button arbiterRejectButton{6, false};
+// ----------------------------------------------------
+// EEPROM helpers
+// ----------------------------------------------------
+int findFreeSlot() {
+  for (int i = 0; i < MAX_AUCTIONS; i++) {
+    int addr = i * ENTRY_SIZE;
+    if (EEPROM.read(addr) != 1) return i;
+  }
+  return -1;
+}
 
-// --- Output pins ---
-const uint8_t fundsToSellerPin = 9;
-const uint8_t refundToBuyerPin = 10;
-const uint8_t objectLatchPin  = 11;
-const uint8_t statusLedPin    = 13;  // Onboard LED
+int findSlotByAuction(const String &id) {
+  for (int i = 0; i < MAX_AUCTIONS; i++) {
+    int addr = i * ENTRY_SIZE;
+    EEPROM.get(addr, entryBuffer);
+    if (entryBuffer.used == 1 && String(entryBuffer.auctionId) == id) return i;
+  }
+  return -1;
+}
 
-// ------------------------------------------------------------
-// GLOBALS
-// ------------------------------------------------------------
-EscrowState state = WAITING_FOR_BUYER_CONFIRMATION;
-bool fundsHeld        = false;
-bool objectReleased   = false;
-uint32_t escrowBalance = 0;
-unsigned long arbiterDecisionDeadline = 0;
+void eraseSlot(int i) {
+  int addr = i * ENTRY_SIZE;
+  for (int j = 0; j < ENTRY_SIZE; j++) EEPROM.write(addr + j, 0);
+}
 
-// ------------------------------------------------------------
-// FUNCTION DECLARATIONS
-// ------------------------------------------------------------
-void initButton(Button &button);
-bool buttonPressed(Button &button);
+void clearAllSlots() {
+  for (int i = 0; i < MAX_AUCTIONS; i++) eraseSlot(i);
+}
 
-void holdFunds();
-void releaseToSeller();
-void refundBuyer();
-void resetEscrow(const char *reason);
+// ----------------------------------------------------
+// Entry I/O
+// ----------------------------------------------------
+void writeEntry(int slot, const String &auctionId, const uint8_t *token) {
+  int addr = slot * ENTRY_SIZE;
+  Entry e;
+  e.used = 1;
+  strncpy(e.auctionId, auctionId.c_str(), AUCTION_ID_LEN);
+  for (int i = 0; i < TOKEN_LEN; i++) e.token[i] = token[i];
+  e.crc = computeCRC((uint8_t *)&e, sizeof(e) - 2);
+  EEPROM.put(addr, e);
+}
 
-void updateState(EscrowState nextState, const char *reason);
-void announceState();
-const char* stateName(EscrowState s);
+bool readEntry(int slot) {
+  int addr = slot * ENTRY_SIZE;
+  EEPROM.get(addr, entryBuffer);
+  uint16_t crcCheck = computeCRC((uint8_t *)&entryBuffer, sizeof(entryBuffer) - 2);
+  return (crcCheck == entryBuffer.crc && entryBuffer.used == 1);
+}
 
-void processCommand(char cmd);
+// ----------------------------------------------------
+// Hex helpers
+// ----------------------------------------------------
+bool hexToBytes(const String &hex, uint8_t *out) {
+  if (hex.length() < TOKEN_LEN * 2) return false;
+  for (int i = 0; i < TOKEN_LEN; i++) {
+    char c1 = hex[2 * i];
+    char c2 = hex[2 * i + 1];
+    uint8_t v1 = (c1 <= '9') ? c1 - '0' : toupper(c1) - 'A' + 10;
+    uint8_t v2 = (c2 <= '9') ? c2 - '0' : toupper(c2) - 'A' + 10;
+    out[i] = (v1 << 4) | v2;
+  }
+  return true;
+}
 
-// ------------------------------------------------------------
-// SETUP
-// ------------------------------------------------------------
+bool tokensMatch(const uint8_t *a, const uint8_t *b) {
+  for (int i = 0; i < TOKEN_LEN; i++)
+    if (a[i] != b[i]) return false;
+  return true;
+}
+
+// ----------------------------------------------------
+// Command handlers
+// ----------------------------------------------------
+void handleAdd(String id, String hexToken) {
+  uint8_t token[TOKEN_LEN];
+  if (!hexToBytes(hexToken, token)) {
+    Serial.println("ERR_FORMAT");
+    return;
+  }
+
+  int existing = findSlotByAuction(id);
+  if (existing >= 0) eraseSlot(existing);
+
+  int slot = findFreeSlot();
+  if (slot < 0) {
+    Serial.println("ERR_FULL");
+    return;
+  }
+  writeEntry(slot, id, token);
+  Serial.print("OK_ADD:");
+  Serial.println(id);
+}
+
+void handleBuy(String id, String hexToken) {
+  uint8_t token[TOKEN_LEN];
+  if (!hexToBytes(hexToken, token)) {
+    Serial.println("ERR_FORMAT");
+    return;
+  }
+
+  int slot = findSlotByAuction(id);
+  if (slot < 0) {
+    Serial.println("ERR_NO_ITEM");
+    return;
+  }
+
+  if (!readEntry(slot)) {
+    Serial.println("ERR_CORRUPT");
+    return;
+  }
+
+  if (tokensMatch(entryBuffer.token, token)) {
+    Serial.print("OK_RELEASE:");
+    Serial.println(id);
+    digitalWrite(RELEASE_PIN, HIGH);
+    delay(500);
+    digitalWrite(RELEASE_PIN, LOW);
+    eraseSlot(slot);
+  } else {
+    Serial.print("ERR_MISMATCH:");
+    Serial.println(id);
+    digitalWrite(STATUS_LED, HIGH);
+    delay(500);
+    digitalWrite(STATUS_LED, LOW);
+  }
+}
+
+void handleErase(String id) {
+  int slot = findSlotByAuction(id);
+  if (slot < 0) {
+    Serial.println("ERR_NOT_FOUND");
+    return;
+  }
+  eraseSlot(slot);
+  Serial.print("OK_ERASE:");
+  Serial.println(id);
+}
+
+void handleList() {
+  Serial.println("AUCTIONS:");
+  for (int i = 0; i < MAX_AUCTIONS; i++) {
+    int addr = i * ENTRY_SIZE;
+    EEPROM.get(addr, entryBuffer);
+    if (entryBuffer.used == 1) {
+      Serial.print("  ");
+      Serial.println(entryBuffer.auctionId);
+    }
+  }
+}
+
+void handleReset() {
+  Serial.println("RESETTING ESCROW SYSTEM...");
+  clearAllSlots();
+  digitalWrite(RELEASE_PIN, LOW);
+  digitalWrite(STATUS_LED, LOW);
+  delay(100);
+  Serial.println("EEPROM CLEARED. SYSTEM RESET COMPLETE.");
+  Serial.println("=== Escrow Verification Ready ===");
+}
+
+// ----------------------------------------------------
+// Setup & loop
+// ----------------------------------------------------
 void setup() {
-  delay(2000); // let Serial connect fully
   Serial.begin(115200);
-  Serial.println("=== Arduino Escrow Controller (Serial Test Mode) ===");
-  Serial.println("Type: b=buyer, f=funds, o=ownership, a=approve, r=reject\n");
-
-  initButton(buyerConfirmButton);
-  initButton(fundsDepositedButton);
-  initButton(ownershipVerifiedButton);
-  initButton(arbiterApproveButton);
-  initButton(arbiterRejectButton);
-
-  pinMode(fundsToSellerPin, OUTPUT);
-  pinMode(refundToBuyerPin, OUTPUT);
-  pinMode(objectLatchPin,  OUTPUT);
-  pinMode(statusLedPin,    OUTPUT);
-
-  digitalWrite(fundsToSellerPin, LOW);
-  digitalWrite(refundToBuyerPin, LOW);
-  digitalWrite(objectLatchPin, HIGH);  // Locked by default
-  digitalWrite(statusLedPin, LOW);
-
-  announceState();
+  pinMode(STATUS_LED, OUTPUT);
+  pinMode(RELEASE_PIN, OUTPUT);
+  digitalWrite(RELEASE_PIN, LOW);
+  Serial.println("=== Escrow Verification Ready ===");
 }
 
-// ------------------------------------------------------------
-// MAIN LOOP
-// ------------------------------------------------------------
 void loop() {
-  // --- Handle normal button input ---
-  switch (state) {
-    case WAITING_FOR_BUYER_CONFIRMATION:
-      if (buttonPressed(buyerConfirmButton)) {
-        updateState(WAITING_FOR_FUNDS,
-                    "Buyer confirmed intent to purchase. Awaiting funds transfer.");
-      }
-      break;
-
-    case WAITING_FOR_FUNDS:
-      if (buttonPressed(fundsDepositedButton)) {
-        holdFunds();
-        updateState(WAITING_FOR_OWNERSHIP_VERIFICATION,
-                    "Funds locked in escrow. Waiting for ownership verification.");
-      }
-      break;
-
-    case WAITING_FOR_OWNERSHIP_VERIFICATION:
-      if (buttonPressed(ownershipVerifiedButton)) {
-        arbiterDecisionDeadline = millis() + arbiterDecisionWindow;
-        updateState(ARBITER_REVIEW,
-                    "Ownership verified. Escalating to arbiter.");
-      }
-      break;
-
-    case ARBITER_REVIEW:
-      if (buttonPressed(arbiterApproveButton)) {
-        releaseToSeller();
-        updateState(RELEASED, "Arbiter approved. Releasing funds and object.");
-      } else if (buttonPressed(arbiterRejectButton)) {
-        refundBuyer();
-        updateState(CANCELLED, "Arbiter rejected. Refunding buyer.");
-      } else if (arbiterDecisionDeadline > 0 && millis() > arbiterDecisionDeadline) {
-        releaseToSeller();
-        updateState(RELEASED, "Decision window expired. Auto-release executed.");
-      }
-      break;
-
-    case RELEASED:
-      digitalWrite(statusLedPin, HIGH);  // Solid LED = success
-      break;
-
-    case CANCELLED:
-      digitalWrite(statusLedPin, millis() / 250 % 2);  // Blink = cancelled
-      break;
-  }
-
-  // --- SERIAL COMMAND HANDLER ---
   if (Serial.available()) {
-    char cmd = Serial.read();
-    cmd = tolower(cmd);
-    if (cmd == '\r' || cmd == '\n' || cmd == ' ' || cmd == '\t' || cmd == 0) return;
-    Serial.print("Received command: ");
-    Serial.println(cmd);
-    processCommand(cmd);
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+
+    if (cmd.startsWith("ADD:")) {
+      int c1 = cmd.indexOf(':', 4);
+      if (c1 == -1) { Serial.println("ERR_SYNTAX"); return; }
+      String id = cmd.substring(4, c1);
+      String token = cmd.substring(c1 + 1);
+      handleAdd(id, token);
+    }
+    else if (cmd.startsWith("BUY:")) {
+      int c1 = cmd.indexOf(':', 4);
+      if (c1 == -1) { Serial.println("ERR_SYNTAX"); return; }
+      String id = cmd.substring(4, c1);
+      String token = cmd.substring(c1 + 1);
+      handleBuy(id, token);
+    }
+    else if (cmd.startsWith("ERASE:")) {
+      String id = cmd.substring(6);
+      handleErase(id);
+    }
+    else if (cmd == "LIST") {
+      handleList();
+    }
+    else if (cmd == "RESET") {
+      handleReset();
+    }
+    else {
+      Serial.println("ERR_UNKNOWN_CMD");
+    }
   }
-}
-
-// ------------------------------------------------------------
-// BUTTON UTILITIES
-// ------------------------------------------------------------
-void initButton(Button &button) {
-  pinMode(button.pin, INPUT_PULLUP);
-  button.lastPressed = false;
-}
-
-bool buttonPressed(Button &button) {
-  bool pressedNow = (digitalRead(button.pin) == LOW);
-  bool risingEdge = pressedNow && !button.lastPressed;
-  button.lastPressed = pressedNow;
-  return risingEdge;
-}
-
-// ------------------------------------------------------------
-// ESCROW ACTIONS
-// ------------------------------------------------------------
-void holdFunds() {
-  fundsHeld = true;
-  escrowBalance = salePriceCents;
-  objectReleased = false;
-  digitalWrite(objectLatchPin, HIGH);
-  const uint32_t dollars = escrowBalance / 100;
-  const uint8_t cents = escrowBalance % 100;
-  Serial.print("Escrow now holds $");
-  Serial.print(dollars);
-  Serial.print('.');
-  if (cents < 10) {
-    Serial.print('0');
-  }
-  Serial.println(cents);
-}
-
-void releaseToSeller() {
-  if (!fundsHeld) {
-    Serial.println("Release requested, but no funds held.");
-    return;
-  }
-  fundsHeld = false;
-  escrowBalance = 0;
-  objectReleased = true;
-  Serial.println("Releasing funds to seller and unlocking object.");
-  digitalWrite(objectLatchPin, LOW);  // Unlock
-  digitalWrite(fundsToSellerPin, HIGH);
-  delay(250);
-  digitalWrite(fundsToSellerPin, LOW);
-}
-
-void refundBuyer() {
-  if (!fundsHeld) {
-    Serial.println("Refund requested, but escrow empty.");
-    return;
-  }
-  fundsHeld = false;
-  escrowBalance = 0;
-  objectReleased = false;
-  Serial.println("Refunding buyer and keeping object locked.");
-  digitalWrite(objectLatchPin, HIGH);
-  digitalWrite(refundToBuyerPin, HIGH);
-  delay(250);
-  digitalWrite(refundToBuyerPin, LOW);
-}
-
-// ------------------------------------------------------------
-// STATE LOGIC + SERIAL COMMAND EXECUTION
-// ------------------------------------------------------------
-void processCommand(char cmd) {
-  switch (cmd) {
-    case 'b':
-      updateState(WAITING_FOR_FUNDS, "Buyer confirmed intent to purchase. Awaiting funds transfer.");
-      break;
-    case 'f':
-      holdFunds();
-      updateState(WAITING_FOR_OWNERSHIP_VERIFICATION,
-                  "Funds locked in escrow. Waiting for ownership verification.");
-      break;
-    case 'o':
-      arbiterDecisionDeadline = millis() + arbiterDecisionWindow;
-      updateState(ARBITER_REVIEW,
-                  "Ownership verified. Escalating to arbiter.");
-      break;
-    case 'a':
-      releaseToSeller();
-      updateState(RELEASED, "Arbiter approved. Releasing funds and object.");
-      break;
-    case 'r':
-      refundBuyer();
-      updateState(CANCELLED, "Arbiter rejected. Refunding buyer.");
-      break;
-    case 'x':
-      resetEscrow("Escrow restarted. Waiting for buyer confirmation.");
-      break;
-    default:
-      Serial.print("Unknown command: ");
-      Serial.println(cmd);
-      break;
-  }
-}
-
-// ------------------------------------------------------------
-// STATE MANAGEMENT
-// ------------------------------------------------------------
-void updateState(EscrowState nextState, const char *reason) {
-  state = nextState;
-  Serial.println(reason);
-  announceState();
-  if (state != ARBITER_REVIEW)
-    arbiterDecisionDeadline = 0;
-}
-
-void announceState() {
-  Serial.print("[STATE] ");
-  Serial.println(stateName(state));
-}
-
-const char* stateName(EscrowState s) {
-  switch (s) {
-    case WAITING_FOR_BUYER_CONFIRMATION: return "Waiting for buyer confirmation";
-    case WAITING_FOR_FUNDS:              return "Awaiting funds transfer";
-    case WAITING_FOR_OWNERSHIP_VERIFICATION: return "Awaiting ownership verification";
-    case ARBITER_REVIEW:                 return "Arbiter review in progress";
-    case RELEASED:                       return "Transaction complete";
-    case CANCELLED:                      return "Transaction cancelled";
-    default:                             return "Unknown";
-  }
-}
-
-void resetEscrow(const char *reason) {
-  fundsHeld = false;
-  objectReleased = false;
-  escrowBalance = 0;
-  arbiterDecisionDeadline = 0;
-  digitalWrite(objectLatchPin, HIGH);   // lock object until new cycle
-  digitalWrite(fundsToSellerPin, LOW);
-  digitalWrite(refundToBuyerPin, LOW);
-  digitalWrite(statusLedPin, LOW);
-  updateState(WAITING_FOR_BUYER_CONFIRMATION, reason);
 }
