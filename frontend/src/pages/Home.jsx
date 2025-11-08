@@ -28,14 +28,7 @@ export default function Home() {
         </p>
       </div>
 
-      <div className="card" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)', border: '2px solid #00ff41' }}>
-        <h2 style={{ marginBottom: '1rem', color: '#ff0055' }}>⚠️ DISCLAIMER</h2>
-        <p style={{ lineHeight: '1.8', color: '#00cc33' }}>
-          This is a <strong>hackathon project for educational purposes only</strong>.
-          XCROW demonstrates blockchain technology, encryption, and privacy concepts
-          in the context of the Louvre Heist challenge. No actual illegal activity is endorsed or supported.
-        </p>
-      </div>
+     
 
       <div className="grid mt-2">
         <div className="card">

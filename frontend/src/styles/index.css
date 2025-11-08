@@ -64,19 +64,18 @@ body {
 }
 
 .navbar-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  object-fit: cover;
-  box-shadow: 0 0 15px var(--shadow);
-  transition: transform 0.3s ease;
+  width: 60px;        /* bigger */
+  height: auto;       /* keeps aspect ratio */
+  object-fit: contain;
+  border: none;       /* no outline */
+  border-radius: 0;   /* removes the circle */
+  box-shadow: none;   /* no glow */
+  transition: transform 0.3s ease, filter 0.3s ease;
 }
-
 .navbar-logo:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
+  filter: brightness(1.1); /* subtle hover glow instead of shadow ring */
 }
-
 .logo-link {
   text-decoration: none;
   display: flex;
@@ -95,8 +94,8 @@ body {
 }
 
 .logo-link h1:hover {
-  color: var(--accent);
-  text-shadow: 0 0 20px var(--accent), 0 0 35px var(--text-secondary);
+  color: var(--text-secondary);
+  text-shadow: 0 0 20px var(--text-secondary), 0 0 35px var(--text-secondary);
   transform: scale(1.05);
 }
 

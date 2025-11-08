@@ -8,7 +8,7 @@ import Admin from './pages/Admin'
 import ThiefLogin from './pages/ThiefLogin'
 import ThiefDashboard from './pages/ThiefDashboard'
 import axios from 'axios'
-import vaultLogo from '/images/theif.jpg'
+import vaultLogo from '/images/xlogo.png'
 
 function Header({ anonymousId, setAnonymousId }) {
   const location = useLocation()
@@ -52,7 +52,7 @@ function Header({ anonymousId, setAnonymousId }) {
         <div className="logo">
           <Link to="/" className="logo-link">
             <img src={vaultLogo} alt="Vault Logo" className="navbar-logo" />
-            <h1>XCROW</h1>
+            <h1>CROW</h1>
           </Link>
           <div className="onion-badge">Admin Portal</div>
         </div>

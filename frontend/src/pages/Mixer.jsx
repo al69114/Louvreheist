@@ -51,7 +51,7 @@ export default function Mixer() {
 
   return (
     <div className="container">
-      <h1 style={{ marginBottom: '2rem' }}>💰 Crypto Mixer / Tumbler</h1>
+      <h1 style={{ marginBottom: '2rem' }}> Crypto Mixer / Tumbler</h1>
 
       <div className="card mb-2" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)', border: '2px solid #00ff41' }}>
         <h3 style={{ marginBottom: '1rem', color: '#00ff41' }}>
