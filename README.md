@@ -198,6 +198,43 @@ The application includes mock data for demonstration:
 ### Auctions
 - `GET /api/auction/active` - List active auctions
 - `POST /api/auction/create` - Create auction
+
+### Escrow Bridge
+- `GET /api/escrow/status/:auctionId` – Poll item/purchase state
+- `GET /api/escrow/pending` – (hardware) fetch purchase keys waiting to be loaded
+- `POST /api/escrow/device/confirm` – (hardware) confirm a successful token match
+
+## 🔐 Hardware Escrow Integration
+
+The `Louvre-Random` Arduino sketch now stores 32-byte purchase keys and emits `OK_RELEASE:<auctionId>:<hexKey>` once a buyer enters a matching code. The web stack orchestrates that process with in-memory escrow records:
+
+1. **Seller creates auction** → backend generates an `itemKey` and stores it off-chain.
+2. **Buyer wins & pays** → `/api/transaction/create` logs the payment and issues a 32-byte `purchaseKey`.
+3. **Hardware bridge** continuously calls `/api/escrow/pending`, pushes `ADD:<auctionId>:<purchaseKey>` to the Arduino, and waits for `OK_RELEASE`.
+4. **Arduino match** → the bridge POSTs `/api/escrow/device/confirm` so the site can reveal the item key to the buyer and trigger the payout workflow for the seller.
+
+### Running the bridge script
+
+```bash
+cd backend
+npm install              # also installs serialport/axios if not already present
+ESCROW_SERIAL_PORT=COM5 \
+ESCROW_API_BASE=http://localhost:5000 \
+ESCROW_DEVICE_SECRET=shadow-escrow-dev \
+node utils/escrowBridge.js
+```
+
+Environment variables:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `ESCROW_SERIAL_PORT` | Serial device path (e.g., `COM5`, `/dev/ttyACM0`) | `/dev/ttyACM0` |
+| `ESCROW_SERIAL_BAUD` | Baud rate for the Arduino | `115200` |
+| `ESCROW_API_BASE` | HTTP URL for the Express backend | `http://localhost:5000` |
+| `ESCROW_DEVICE_SECRET` | Shared secret required by the `/api/escrow/*` device endpoints | `shadow-escrow-dev` |
+| `ESCROW_POLL_MS` | Polling cadence for pending purchases | `4000` |
+
+Once the bridge is up, the Buyer portal automatically transitions to a **Vault Release** screen after payment and displays the redeemable `itemKey` the moment the hardware reports success.
 - `POST /api/auction/bid` - Place bid
 - `GET /api/auction/:id` - Get auction details
 - `GET /api/auction/:id/bids` - Get bids

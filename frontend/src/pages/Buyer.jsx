@@ -27,9 +27,13 @@ export default function Buyer() {
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [wonAuction, setWonAuction] = useState(false);
 
-  // Payment state
+  // Payment / escrow state
   const [walletAddress, setWalletAddress] = useState('');
   const [paymentHash, setPaymentHash] = useState('');
+  const [escrowMonitorId, setEscrowMonitorId] = useState(null);
+  const [escrowStatus, setEscrowStatus] = useState(null);
+  const [releaseItemKey, setReleaseItemKey] = useState(null);
+  const [purchaseKeyPreview, setPurchaseKeyPreview] = useState(null);
 
   // Poll for active auctions when in waiting screen and sync timer when bidding
   useEffect(() => {
@@ -60,6 +64,30 @@ export default function Buyer() {
       return () => clearInterval(interval);
     }
   }, [timerRunning, timeRemaining]);
+
+  useEffect(() => {
+    if (currentScreen !== 'escrow' || !escrowMonitorId) return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await axios.get(`/api/escrow/status/${escrowMonitorId}`);
+        if (response.data?.status) {
+          setEscrowStatus(response.data.status);
+          if (response.data.status.status === 'released' && response.data.status.itemKey) {
+            setReleaseItemKey(response.data.status.itemKey);
+          }
+        }
+      } catch (error) {
+        if (error.response?.status !== 404) {
+          console.error('Failed to poll escrow status:', error.message);
+        }
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 2500);
+    return () => clearInterval(interval);
+  }, [currentScreen, escrowMonitorId]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -188,8 +216,7 @@ export default function Buyer() {
     }
 
     try {
-      // Create a transaction record
-      await axios.post('/api/transaction/create', {
+      const response = await axios.post('/api/transaction/create', {
         buyerId,
         auctionId: activeAuction.id,
         itemName: activeAuction.title,
@@ -198,10 +225,25 @@ export default function Buyer() {
         transactionHash: paymentHash
       });
 
-      // Navigate to completed transactions page
-      navigate('/transactions');
+      setWalletAddress('');
+      setPaymentHash('');
+      setEscrowMonitorId(activeAuction.id);
+      setEscrowStatus(response.data.escrow || null);
+      setPurchaseKeyPreview(response.data.purchaseKey || null);
+      setCurrentScreen('escrow');
     } catch (error) {
       alert('Failed to complete payment: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const copyItemKey = async () => {
+    if (!releaseItemKey) return;
+    try {
+      await navigator.clipboard.writeText(releaseItemKey);
+      alert('Item key copied to clipboard.');
+    } catch (err) {
+      console.warn('Clipboard copy failed:', err);
+      alert('Unable to copy automatically. Please copy the key manually.');
     }
   };
 
@@ -214,6 +256,15 @@ export default function Buyer() {
     setCurrentScreen('password');
     setActiveAuction(null);
     setMyBid(null);
+    setBidAmount('');
+    setWalletAddress('');
+    setPaymentHash('');
+    setEscrowMonitorId(null);
+    setEscrowStatus(null);
+    setReleaseItemKey(null);
+    setPurchaseKeyPreview(null);
+    setAuctionEnded(false);
+    setWonAuction(false);
   };
 
   const formatTime = (seconds) => {
@@ -461,6 +512,72 @@ export default function Buyer() {
               Complete Payment
             </button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== SCREEN 6: ESCROW RELEASE STATUS ==========
+  if (currentScreen === 'escrow') {
+    const statusLabel = escrowStatus?.status || 'awaiting_release';
+    const maskedPurchaseKey = purchaseKeyPreview
+      ? `${purchaseKeyPreview.slice(0, 8)}...${purchaseKeyPreview.slice(-4)}`
+      : null;
+
+    return (
+      <div className="container" style={{ maxWidth: '650px', marginTop: '3rem' }}>
+        <div className="card">
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🔐</div>
+            <h2>Vault Release In Progress</h2>
+            <p className="text-muted">
+              Waiting for the physical escrow controller to validate your purchase key.
+            </p>
+          </div>
+
+          <div style={{ background: '#0a0a0a', padding: '1rem', borderRadius: '4px', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span className="text-muted">Current Status</span>
+              <strong style={{ textTransform: 'capitalize' }}>{statusLabel.replace('_', ' ')}</strong>
+            </div>
+            {maskedPurchaseKey && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'monospace' }}>
+                <span className="text-muted">Purchase Key</span>
+                <span>{maskedPurchaseKey}</span>
+              </div>
+            )}
+          </div>
+
+          {releaseItemKey ? (
+            <div style={{ background: 'rgba(0, 255, 65, 0.08)', padding: '1.25rem', borderRadius: '4px', marginBottom: '1.5rem' }}>
+              <p style={{ marginBottom: '0.5rem', color: '#00ff41', fontWeight: 'bold' }}>Redeem Item Key</p>
+              <code style={{ fontSize: '1.1rem', wordBreak: 'break-all', display: 'block', marginBottom: '0.75rem' }}>
+                {releaseItemKey}
+              </code>
+              <button className="btn btn-danger" onClick={copyItemKey} style={{ width: '100%' }}>
+                Copy Item Key
+              </button>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
+              <p className="text-muted" style={{ marginBottom: '0.5rem' }}>
+                Standing by for confirmation from the vault hardware...
+              </p>
+              <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+                This page refreshes automatically every few seconds.
+              </p>
+            </div>
+          )}
+
+          <button
+            className="btn"
+            style={{ width: '100%' }}
+            disabled={!releaseItemKey}
+            onClick={() => navigate('/transactions')}
+          >
+            {releaseItemKey ? 'View Receipt' : 'Waiting for Release...'}
+          </button>
         </div>
       </div>
     );

@@ -8,6 +8,7 @@ const db = {
   invite_links: [], // New: invite links for thieves
   buyers: [], // New: authenticated buyers
   transactions: [], // New: transaction records
+  escrow_records: [],
 
   _autoIncrement: {
     users: 1,
@@ -17,7 +18,8 @@ const db = {
     thieves: 1,
     invite_links: 1,
     buyers: 1,
-    transactions: 1
+    transactions: 1,
+    escrow_records: 1
   },
 
   prepare(query) {

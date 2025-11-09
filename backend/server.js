@@ -21,6 +21,7 @@ const userRoutes = require('./routes/user');
 const thiefRoutes = require('./routes/thief');
 const buyerRoutes = require('./routes/buyer');
 const transactionRoutes = require('./routes/transaction');
+const escrowRoutes = require('./routes/escrow');
 
 // Routes
 app.use('/api/auction', auctionRoutes);
@@ -30,6 +31,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/thief', thiefRoutes);
 app.use('/api/buyer', buyerRoutes);
 app.use('/api/transaction', transactionRoutes);
+app.use('/api/escrow', escrowRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

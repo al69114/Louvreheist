@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../config/database');
 const { encrypt, decrypt } = require('../utils/encryption');
+const escrow = require('../utils/escrowKeys');
 
 // Simple in-memory scheduler state
 let auctionSchedule = {
@@ -106,10 +107,16 @@ router.post('/create', (req, res) => {
       startingPrice
     );
 
+    const escrowRecord = escrow.ensureItemKey(result.lastInsertRowid, sellerId);
+
     res.json({
       success: true,
       auctionId: result.lastInsertRowid,
-      message: 'Auction created'
+      message: 'Auction created',
+      escrow: {
+        itemKey: escrowRecord.itemKey,
+        status: escrowRecord.status
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
