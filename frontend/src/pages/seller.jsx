@@ -29,7 +29,8 @@ export default function Seller() {
     setLoading(true)
 
     try {
-      const response = await axios.post('/api/thief/login', { password })
+      // We send { code: password } because the backend expects a field named "code"
+      const response = await axios.post('/api/login-with-code', { code: password })
 
       // Authentication only persists in session - no localStorage
       setSellerId(response.data.thief.thiefId)
