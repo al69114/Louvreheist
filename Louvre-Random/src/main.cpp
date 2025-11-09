@@ -1,5 +1,10 @@
 #include <EEPROM.h>
 #include <Arduino.h>
+#include <ctype.h>
+
+#ifdef HEX
+#undef HEX
+#endif
 
 #define STATUS_LED 13
 #define RELEASE_PIN 9
@@ -106,6 +111,15 @@ bool tokensMatch(const uint8_t *a, const uint8_t *b) {
   return true;
 }
 
+void tokenToHex(const uint8_t *tokenBytes, char *out) {
+  static const char HEX_DIGITS[] = "0123456789ABCDEF";
+  for (int i = 0; i < TOKEN_LEN; i++) {
+    out[i * 2] = HEX_DIGITS[(tokenBytes[i] >> 4) & 0x0F];
+    out[i * 2 + 1] = HEX_DIGITS[tokenBytes[i] & 0x0F];
+  }
+  out[TOKEN_LEN * 2] = '\0';
+}
+
 // ----------------------------------------------------
 // Command handlers
 // ----------------------------------------------------
@@ -148,8 +162,12 @@ void handleBuy(String id, String hexToken) {
   }
 
   if (tokensMatch(entryBuffer.token, token)) {
+    char purchaseHex[TOKEN_LEN * 2 + 1];
+    tokenToHex(entryBuffer.token, purchaseHex);
     Serial.print("OK_RELEASE:");
-    Serial.println(id);
+    Serial.print(id);
+    Serial.print(':');
+    Serial.println(purchaseHex);
     digitalWrite(RELEASE_PIN, HIGH);
     delay(500);
     digitalWrite(RELEASE_PIN, LOW);

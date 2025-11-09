@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../config/database');
+const escrow = require('../utils/escrowKeys');
 
 /**
  * Create a transaction record
@@ -31,9 +32,13 @@ router.post('/create', (req, res) => {
 
     const transaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
 
+    const escrowPayload = escrow.issuePurchaseKey(auctionId, buyerId, transaction.id);
+
     res.json({
       success: true,
-      transaction
+      transaction,
+      purchaseKey: escrowPayload.purchaseKey,
+      escrow: escrowPayload.record
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
