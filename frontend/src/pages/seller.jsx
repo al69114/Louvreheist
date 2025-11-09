@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 
 export default function Seller() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  // Skip password gate: show seller page directly when visiting the link
+  const [isAuthenticated, setIsAuthenticated] = useState(true)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [sellerId, setSellerId] = useState('')
@@ -16,13 +17,28 @@ export default function Seller() {
   const fetchAuctions = async (id) => {
     try {
       const response = await axios.get('/api/auction/active')
-      // Filter to only show this seller's auctions
-      const sellerAuctions = response.data.auctions.filter(a => a.seller_id === id)
-      setAuctions(sellerAuctions)
+      // If an id is provided, filter to that seller's auctions; otherwise show all active auctions
+      if (id) {
+        const sellerAuctions = response.data.auctions.filter(a => a.seller_id === id)
+        setAuctions(sellerAuctions)
+      } else {
+        setAuctions(response.data.auctions)
+      }
     } catch (error) {
       console.error('Failed to fetch auctions:', error)
     }
   }
+
+  // On mount, try to read a seller/thief id from localStorage and fetch auctions.
+  useEffect(() => {
+    try {
+      const id = localStorage.getItem('thiefId') || localStorage.getItem('sellerId') || localStorage.getItem('thiefid')
+      if (id) setSellerId(id)
+      fetchAuctions(id)
+    } catch (err) {
+      fetchAuctions()
+    }
+  }, [])
 
   const handleLogin = async (e) => {
     e.preventDefault()

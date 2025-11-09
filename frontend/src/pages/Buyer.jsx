@@ -7,14 +7,15 @@ export default function Buyer() {
   const navigate = useNavigate();
 
   // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [buyerId, setBuyerId] = useState('');
   const [token, setToken] = useState('');
 
   // Multi-screen flow state
-  const [currentScreen, setCurrentScreen] = useState('password'); // password, nameEntry, waiting, bidding, payment
+  // Default to waiting so links go straight to buyer page (password screen removed)
+  const [currentScreen, setCurrentScreen] = useState('waiting'); // password, nameEntry, waiting, bidding, payment
   const [realName, setRealName] = useState('');
   const [codename, setCodename] = useState('');
 
@@ -45,6 +46,25 @@ export default function Buyer() {
       return () => clearInterval(interval);
     }
   }, [currentScreen]);
+
+  // On mount, try to hydrate buyer state from localStorage so dashboard can show personalized info
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('buyerToken')
+      const id = localStorage.getItem('buyerId')
+      const storedCodename = localStorage.getItem('buyerCodename') || localStorage.getItem('buyerCodename')
+
+      if (token) setToken(token)
+      if (id) setBuyerId(id)
+      if (storedCodename) setCodename(storedCodename)
+
+      // ensure we're showing the waiting/dashboard screen by default
+      setIsAuthenticated(true)
+      setCurrentScreen('waiting')
+    } catch (err) {
+      // ignore
+    }
+  }, [])
 
   // Bidding timer
   useEffect(() => {
