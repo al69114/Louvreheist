@@ -1,10 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { initializeDatabase } = require('./config/database');
+const axios = require('axios');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { db, initializeDatabase } = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'shadow-mint-secret-key-hackathon-2025';
+const BOT_API_URL = process.env.BOT_API_URL || 'https://full-auction-bot.onrender.com';
 
 // Middleware
 app.use(cors());
@@ -31,6 +36,74 @@ app.use('/api/thief', thiefRoutes);
 app.use('/api/buyer', buyerRoutes);
 app.use('/api/transaction', transactionRoutes);
 
+// Bot health proxy to verify connectivity/config quickly
+app.get('/api/bot/health', async (req, res) => {
+  try {
+    if (!BOT_API_URL) {
+      return res.status(500).json({ ok: false, message: 'BOT_API_URL is not configured' });
+    }
+    const r = await axios.get(`${BOT_API_URL}/health`);
+    return res.status(200).json({ ok: true, bot: r.data || 'ok' });
+  } catch (err) {
+    return res.status(502).json({ ok: false, message: err.message, url: BOT_API_URL });
+  }
+});
+
+// Login via Telegram bot-issued code (seller)
+app.post('/api/login-with-code', async (req, res) => {
+  try {
+    const { code } = req.body;
+    const trimmedCode = (code || '').toString().trim();
+    if (!trimmedCode) {
+      return res.status(400).json({ success: false, message: 'Code is required.' });
+    }
+
+    // Verify code with the external bot service
+    const response = await axios.get(`${BOT_API_URL}/check-code/${encodeURIComponent(trimmedCode)}`);
+
+    if (!response.data || !response.data.valid) {
+      return res.status(401).json({ success: false, message: 'The code is not valid.' });
+    }
+
+    // Only allow seller codes here
+    if (response.data.type && response.data.type !== 'seller') {
+      return res.status(403).json({ success: false, message: 'Code is not for seller access.' });
+    }
+
+    // Create a thief (seller) identity for this session
+    const thiefId = 'thief_' + crypto.randomBytes(8).toString('hex');
+
+    const stmt = db.prepare(`
+      INSERT INTO thieves (username, password_hash, invite_code)
+      VALUES (?, ?, ?)
+    `);
+    const result = stmt.run(thiefId, 'bot-login', `bot:${trimmedCode}`);
+
+    const token = jwt.sign({ id: result.lastInsertRowid, username: thiefId, role: 'thief' }, JWT_SECRET, {
+      expiresIn: '30d'
+    });
+
+    return res.status(200).json({
+      success: true,
+      token,
+      thief: {
+        id: result.lastInsertRowid,
+        thiefId
+      }
+    });
+  } catch (error) {
+    if (error.response) {
+      if (error.response.status === 404) {
+        return res.status(401).json({ success: false, message: 'The code is not valid.' });
+      }
+      const msg = error.response.data?.message || `Bot API error: ${error.response.status}`;
+      return res.status(502).json({ success: false, message: msg });
+    }
+    console.error('Login-with-code error:', error.message);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -47,52 +120,4 @@ app.listen(PORT, () => {
   console.log(`⚠️  Onion Address: xcr0dark.onion`);
   console.log(`🔐 Encryption: Active`);
   console.log(`⛓️  Blockchain: Sepolia Testnet\n`);
-});
-
-// added api endpoint for login with code
-const axios = require('axios'); // You'll need axios (npm install axios)
-
-// The URL of your deployed bot service.
-// Put this in your main backend's .env file, not in the code!
-const BOT_API_URL = 'https://full-auction-bot.onrender.com';
-
-// The new endpoint for your front-end to call
-app.post('/api/login-with-code', async (req, res) => {
-  try {
-    const { code } = req.body;
-
-    // 1. Make the secure server-to-server request
-    const response = await axios.get(`${BOT_API_URL}/check-code/${code}`);
-
-    // 2. Check the bot's answer
-    if (response.data.valid) {
-      // SUCCESS! The code is valid.
-      // Now, you do your main app's login logic:
-      // - Find or create the user in your *main database*
-      // - Create a JWT (JSON Web Token) or a session
-      // - Send the token/session back to the front-end
-      
-      console.log('Code is valid for type:', response.data.type);
-      
-      // Example: creating a JWT
-      const user = { /* ... find or create user ... */ };
-      const token = createJwtToken(user); // Your function
-      
-      res.status(200).json({ success: true, token: token });
-
-    } else {
-      // This "else" block is never reached, as axios will throw an
-      // error on a 404 response. We'll catch it below.
-    }
-
-  } catch (error) {
-    // This will catch the 404 "Invalid code" error from the bot API
-    if (error.response && error.response.status === 404) {
-      return res.status(401).json({ success: false, message: 'The code is not valid.' });
-    }
-    
-    // Catch any other server errors
-    console.error('Login error:', error.message);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
 });

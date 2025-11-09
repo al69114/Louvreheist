@@ -66,6 +66,44 @@ router.post('/admin/create-invite', (req, res) => {
   }
 });
 
+// GET alias for environments blocking POST from network view
+router.get('/admin/create-invite', (req, res) => {
+  try {
+    // Generate unique invite code and password
+    const code = crypto.randomBytes(16).toString('hex');
+    const password = generateSimplePassword();
+
+    const stmt = db.prepare(`
+      INSERT INTO invite_links (code, password, used)
+      VALUES (?, ?, ?)
+    `);
+
+    // Note: in-memory DB supports a role param even if the SQL doesn't explicitly show it
+    stmt.run(code, password, false, 'thief');
+
+    const protocol = req.protocol || 'http';
+    let host = req.get('x-forwarded-host') || req.get('referer');
+    if (host && host.includes('://')) {
+      const url = new URL(host);
+      host = url.host;
+    } else if (!host || host.includes('localhost:5001')) {
+      host = 'localhost:3000';
+    }
+
+    const loginUrl = `${protocol}://${host}/seller`;
+
+    res.json({
+      success: true,
+      loginUrl: loginUrl,
+      inviteLink: `/seller`,
+      password: password,
+      code: code
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /**
  * Get all invite links (admin)
  */

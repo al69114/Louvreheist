@@ -42,16 +42,10 @@ export default function Admin() {
   }
 
   const generateInviteLink = async () => {
-    try {
-      const response = await axios.post('/api/thief/admin/create-invite')
-      setNewLink(response.data)
-      fetchInvites()
-
-      // Auto-clear after 5 seconds
-      setTimeout(() => setNewLink(null), 10000)
-    } catch (error) {
-      alert('Failed to generate invite link')
-    }
+    // Seller link no longer requires backend generation.
+    // We only surface the portal URL; the actual code is issued via Telegram bot.
+    setNewLink({ inviteLink: '/seller' })
+    setTimeout(() => setNewLink(null), 10000)
   }
 
   const generateBuyerInviteLink = async () => {
@@ -85,31 +79,25 @@ export default function Admin() {
 
       {/* Generate Invite Links */}
       <div className="card mb-2">
-        <h2 style={{ marginBottom: '1rem' }}>🔗 Generate Seller Invite Links</h2>
-        <p className="text-muted" style={{ marginBottom: '1.5rem' }}>
-          Create unique invite links for new thieves to join the platform.
+        <h2 style={{ marginBottom: '1rem' }}>🔗 Generate Seller Invite Link</h2>
+        <p className="text-muted" style={{ marginBottom: '1rem' }}>
+          Share only the link. Sellers must obtain their access code from the Telegram bot and enter it on the seller portal.
         </p>
 
         <button className="btn btn-danger" onClick={generateInviteLink}>
-          + Generate New Invite Link
+          + Generate Seller Link
         </button>
 
         {newLink && (
           <div className="card mt-2" style={{ background: 'linear-gradient(135deg, rgba(0, 255, 65, 0.1) 0%, rgba(0, 200, 50, 0.05) 100%)', border: '2px solid #00ff41' }}>
-            <h4 style={{ marginBottom: '1rem', color: '#00ff41' }}>✅ New Invite Link Generated!</h4>
+            <h4 style={{ marginBottom: '0.75rem', color: '#00ff41' }}>✅ Seller Link Ready</h4>
+            <p className="text-muted" style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+              The access code is provided via the Telegram bot. Do not share any passwords here.
+            </p>
 
             <div style={{ background: '#0a0a0a', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' }}>
               <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                Password (Save this!):
-              </p>
-              <code style={{ color: '#ff0055', fontSize: '1.2rem', wordBreak: 'break-all', fontWeight: 'bold' }}>
-                {newLink.password}
-              </code>
-            </div>
-
-            <div style={{ background: '#0a0a0a', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' }}>
-              <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                Full URL:
+                Seller Portal URL:
               </p>
               <code style={{ color: '#00ff41', fontSize: '0.9rem', wordBreak: 'break-all' }}>
                 {window.location.origin}{newLink.inviteLink}
@@ -118,22 +106,10 @@ export default function Admin() {
 
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
-                className="btn btn-danger"
-                onClick={() => copyToClipboard(newLink.password)}
-              >
-                📋 Copy Password
-              </button>
-              <button
                 className="btn"
                 onClick={() => copyToClipboard(`${window.location.origin}${newLink.inviteLink}`)}
               >
                 📋 Copy Link
-              </button>
-              <button
-                className="btn"
-                onClick={() => copyToClipboard(newLink.code)}
-              >
-                📋 Copy Code
               </button>
             </div>
           </div>

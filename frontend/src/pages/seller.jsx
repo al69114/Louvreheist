@@ -29,14 +29,16 @@ export default function Seller() {
     setLoading(true)
 
     try {
-      const response = await axios.post('/api/thief/login', { password })
+      // Verify seller access code via Telegram bot-backed API
+      const response = await axios.post('/api/login-with-code', { code: password })
 
       // Authentication only persists in session - no localStorage
       setSellerId(response.data.thief.thiefId)
       setIsAuthenticated(true)
       await fetchAuctions(response.data.thief.thiefId)
     } catch (error) {
-      alert(error.response?.data?.error || 'Invalid password')
+      const msg = error.response?.data?.message || error.response?.data?.error || 'Invalid access code'
+      alert(msg)
     } finally {
       setLoading(false)
     }
@@ -110,7 +112,7 @@ export default function Seller() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="Enter your Telegram bot code"
                 required
                 autoFocus
               />
