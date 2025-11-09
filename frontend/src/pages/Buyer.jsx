@@ -1,10 +1,11 @@
 // src/pages/Buyer.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Buyer() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(true);
@@ -27,6 +28,9 @@ export default function Buyer() {
   const [myBid, setMyBid] = useState(null);
   const [auctionEnded, setAuctionEnded] = useState(false);
   const [wonAuction, setWonAuction] = useState(false);
+  const [winnerCheckQueued, setWinnerCheckQueued] = useState(false);
+  const [settledAuction, setSettledAuction] = useState(null);
+  const [lastAuction, setLastAuction] = useState(null);
 
   // Payment / escrow state
   const [walletAddress, setWalletAddress] = useState('');
@@ -66,6 +70,16 @@ export default function Buyer() {
     }
   }, [])
 
+  useEffect(() => {
+    if (location.state?.escrowRedirect) {
+      const { auctionId, escrow } = location.state.escrowRedirect;
+      setEscrowMonitorId(auctionId);
+      setEscrowStatus(escrow);
+      setCurrentScreen('escrow');
+      navigate('/buyer', { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
+
   // Bidding timer
   useEffect(() => {
     if (timerRunning && timeRemaining > 0) {
@@ -74,6 +88,7 @@ export default function Buyer() {
           if (prev <= 1) {
             setTimerRunning(false);
             setAuctionEnded(true);
+            setWinnerCheckQueued(true);
             checkIfWon();
             return 0;
           }
@@ -160,24 +175,62 @@ export default function Buyer() {
       const response = await axios.get('/api/auction/active');
       if (response.data.auctions && response.data.auctions.length > 0) {
         const auction = response.data.auctions[0];
+        const endsAt = auction.ends_at ? new Date(auction.ends_at) : null;
+        const now = new Date();
+        const remainingSeconds = endsAt ? Math.max(0, Math.floor((endsAt - now) / 1000)) : null;
 
-        // Only show bidding screen if auction has an ends_at time (meaning it was activated by admin timer)
-        if (auction.ends_at) {
-          setActiveAuction(auction);
-          setCurrentScreen('bidding');
-
-          // Calculate time remaining based on auction's end time
-          const endsAt = new Date(auction.ends_at);
-          const now = new Date();
-          const remainingSeconds = Math.max(0, Math.floor((endsAt - now) / 1000));
-
-          setTimeRemaining(remainingSeconds);
-          setTimerRunning(remainingSeconds > 0);
+        if (endsAt && remainingSeconds <= 0) {
+          setTimerRunning(false);
+          setTimeRemaining(0);
+          setAuctionEnded(true);
+          if (!winnerCheckQueued) {
+            setWinnerCheckQueued(true);
+            checkIfWon(auction);
+          }
+          setActiveAuction(null);
+          return;
+        } else if (!endsAt) {
+          // Auction exists but timer not armed yet; stay in waiting state
+          setActiveAuction(null);
+          setTimerRunning(false);
+          setTimeRemaining(0);
+          if (currentScreen !== 'payment' && currentScreen !== 'escrow') {
+            setCurrentScreen('waiting');
+          }
+          return;
         }
-        // If auction doesn't have ends_at, it means admin hasn't started the timer yet - stay in waiting
+
+        setActiveAuction(auction);
+        setLastAuction(auction);
+        setCurrentScreen('bidding');
+        setAuctionEnded(false);
+        setWinnerCheckQueued(false);
+        setSettledAuction(null);
+
+        setTimeRemaining(remainingSeconds);
+        setTimerRunning(true);
+      } else if (activeAuction && !winnerCheckQueued) {
+        setTimerRunning(false);
+        setAuctionEnded(true);
+        setWinnerCheckQueued(true);
+        checkIfWon(activeAuction);
+      } else {
+        setActiveAuction(null);
+        setTimerRunning(false);
+        setTimeRemaining(0);
+        setAuctionEnded(false);
+        if (currentScreen !== 'payment' && currentScreen !== 'escrow') {
+          setCurrentScreen('waiting');
+        }
       }
     } catch (error) {
       console.error('Failed to check for auctions:', error);
+      setTimerRunning(false);
+      setAuctionEnded(false);
+      setSettledAuction(null);
+      if (currentScreen !== 'payment' && currentScreen !== 'escrow') {
+        setCurrentScreen('waiting');
+      }
     }
   };
 
@@ -199,31 +252,62 @@ export default function Buyer() {
     }
   };
 
-  const checkIfWon = async () => {
+  const checkIfWon = async (auctionOverride) => {
+    const auctionContext = auctionOverride || activeAuction;
+    const contextToUse = auctionContext || lastAuction;
+    if (!contextToUse) {
+      setAuctionEnded(false);
+      setWinnerCheckQueued(false);
+      return;
+    }
+    // hide stale auction UI while winner is determined
+    setActiveAuction(null);
+    setTimerRunning(false);
+    setTimeRemaining(0);
+    if (currentScreen === 'bidding') {
+      setCurrentScreen('waiting');
+    }
     try {
-      const response = await axios.get(`/api/auction/${activeAuction.id}`);
+      const response = await axios.get(`/api/auction/${contextToUse.id}`);
       const auction = response.data.auction;
+      setSettledAuction(auction);
+      setLastAuction(auction);
 
       // Check if current user's bid is the highest
-      const bidsResponse = await axios.get(`/api/auction/${activeAuction.id}/bids`);
+      const bidsResponse = await axios.get(`/api/auction/${auctionContext.id}/bids`);
       const bids = bidsResponse.data.bids;
 
       if (bids.length > 0) {
         const highestBid = bids.reduce((max, bid) => bid.bid_amount > max.bid_amount ? bid : max);
+        const myShortId = buyerId ? `${buyerId.substring(0, 12)}...` : null;
+        const didWin =
+          highestBid.bidder_id === buyerId ||
+          (myShortId && highestBid.bidder_id_partial === myShortId);
 
-        if (highestBid.bidder_id === buyerId) {
-          setWonAuction(true);
-          setCurrentScreen('payment');
-        } else {
-          alert('Auction ended. You did not win this auction.');
-          setCurrentScreen('waiting');
-          setActiveAuction(null);
-          setMyBid(null);
-          setAuctionEnded(false);
-        }
+        setWonAuction(didWin);
+        setAuctionEnded(false);
+        goToCurrencyForm(contextToUse, didWin);
+      } else {
+        alert('Auction ended with no bids recorded.');
+        setCurrentScreen('waiting');
+        setMyBid(null);
+        setAuctionEnded(false);
+        setSettledAuction(null);
+        goToCurrencyForm(contextToUse, false);
+        setWinnerCheckQueued(false);
+        return;
       }
     } catch (error) {
       console.error('Failed to check auction result:', error);
+      setCurrentScreen('waiting');
+      setAuctionEnded(false);
+      setSettledAuction(null);
+      goToCurrencyForm(contextToUse, false);
+      setWinnerCheckQueued(false);
+      return;
+    } finally {
+      setWinnerCheckQueued(false);
+      setTimerRunning(false);
     }
   };
 
@@ -235,22 +319,19 @@ export default function Buyer() {
       return;
     }
 
-    try {
-      const response = await axios.post('/api/transaction/create', {
-        buyerId,
-        auctionId: activeAuction.id,
-        itemName: activeAuction.title,
-        amount: myBid,
-        walletAddress,
-        transactionHash: paymentHash
-      });
+    const paymentAuction = settledAuction || activeAuction;
+    if (!paymentAuction) {
+      alert('No auction context found. Please refresh the page.');
+      return;
+    }
 
-      setWalletAddress('');
-      setPaymentHash('');
-      setEscrowMonitorId(activeAuction.id);
-      setEscrowStatus(response.data.escrow || null);
-      setPurchaseKeyPreview(response.data.purchaseKey || null);
-      setCurrentScreen('escrow');
+    try {
+      navigate('/buyer/currency', {
+        state: {
+          auction: paymentAuction,
+          amount: myBid
+        }
+      });
     } catch (error) {
       alert('Failed to complete payment: ' + (error.response?.data?.error || error.message));
     }
@@ -285,6 +366,37 @@ export default function Buyer() {
     setPurchaseKeyPreview(null);
     setAuctionEnded(false);
     setWonAuction(false);
+    setWinnerCheckQueued(false);
+    setSettledAuction(null);
+  };
+
+  const goToCurrencyForm = (auctionData, didWin) => {
+    const context = auctionData && auctionData.id ? auctionData : lastAuction;
+    if (!context) return;
+    // Instead of routing to a currency input page, create the internal transaction
+    // record immediately (with empty wallet/tx fields). Then show a simple "Auction is done"
+    // confirmation screen and allow the user to view completed transactions.
+
+    const createAutoTransaction = async () => {
+      try {
+        await axios.post('/api/transaction/create', {
+          buyerId,
+          auctionId: context.id,
+          itemName: context.title,
+          amount: didWin ? myBid : 0,
+          walletAddress: null,
+          transactionHash: null,
+          currency: 'ETH',
+          notes: didWin ? 'Auto-created: winner - awaiting payment details' : 'Auto-created: auction ended, no winning bid from this buyer'
+        });
+      } catch (error) {
+        console.error('Failed to create transaction record:', error);
+      }
+    };
+
+    // Fire-and-forget creation; show done screen
+    createAutoTransaction();
+    setCurrentScreen('done');
   };
 
   const formatTime = (seconds) => {
@@ -476,6 +588,7 @@ export default function Buyer() {
 
   // ========== SCREEN 5: PAYMENT ==========
   if (currentScreen === 'payment') {
+    const paymentContext = settledAuction || activeAuction;
     return (
       <div className="container" style={{ maxWidth: '600px', marginTop: '3rem' }}>
         <div className="card">
@@ -486,7 +599,7 @@ export default function Buyer() {
           </div>
 
           <div style={{ background: '#0a0a0a', padding: '1.5rem', borderRadius: '4px', marginBottom: '2rem' }}>
-            <h3 style={{ marginBottom: '1rem' }}>{activeAuction?.title}</h3>
+            <h3 style={{ marginBottom: '1rem' }}>{paymentContext?.title || 'Winning Item'}</h3>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <span className="text-muted">Winning Bid:</span>
               <strong style={{ fontSize: '1.2rem', color: '#00ff41' }}>{myBid} ETH</strong>
@@ -529,9 +642,41 @@ export default function Buyer() {
             </div>
 
             <button type="submit" className="btn btn-danger" style={{ width: '100%' }}>
-              Complete Payment
+              Continue to Payment
             </button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== SCREEN 6: AUCTION DONE ==========
+  if (currentScreen === 'done') {
+    const doneContext = settledAuction || lastAuction || activeAuction;
+    return (
+      <div className="container" style={{ maxWidth: '600px', marginTop: '3rem' }}>
+        <div className="card text-center">
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✅</div>
+          <h2>Auction Completed</h2>
+          <p className="text-muted" style={{ marginBottom: '1rem' }}>
+            The auction has finished. A completed transaction record was created and can be viewed on the Completed Transactions page.
+          </p>
+
+          {doneContext && (
+            <div style={{ background: '#0a0a0a', padding: '1rem', borderRadius: '6px', marginBottom: '1rem' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>{doneContext.title}</h3>
+              <p className="text-muted">Final price: <strong style={{ color: '#00ff41' }}>{myBid || doneContext.current_price || 0} ETH</strong></p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-danger" onClick={() => navigate('/transactions')} style={{ flex: 1 }}>
+              View Completed Transactions
+            </button>
+            <button className="btn" onClick={() => setCurrentScreen('waiting')} style={{ flex: 1 }}>
+              Back to Lobby
+            </button>
+          </div>
         </div>
       </div>
     );

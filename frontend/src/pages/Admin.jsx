@@ -41,6 +41,18 @@ export default function Admin() {
     }
   }
 
+  const endAuction = async (auctionId) => {
+    if (!window.confirm('End this auction now?')) return
+    try {
+      await axios.post('/api/auction/admin/stop')
+      await axios.post('/api/auction/admin/advance')
+      await fetchAllAuctions()
+      alert('Auction ended.')
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to end auction')
+    }
+  }
+
   const generateInviteLink = async () => {
     try {
       const response = await axios.post('/api/thief/admin/create-invite')
@@ -343,6 +355,16 @@ export default function Admin() {
                   <span>Current: <strong style={{ color: '#00ff41' }}>{auction.current_price} ETH</strong></span>
                   <span>Reserve: <strong className="text-accent">{auction.reserve_price} ETH</strong></span>
                 </div>
+
+                {auction.status === 'active' && (
+                  <button
+                    className="btn btn-danger"
+                    style={{ marginTop: '1rem', width: '100%' }}
+                    onClick={() => endAuction(auction.id)}
+                  >
+                    ⏹ End Auction
+                  </button>
+                )}
               </div>
             ))}
           </div>

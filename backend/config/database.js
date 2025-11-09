@@ -141,7 +141,9 @@ const db = {
             wallet_address: params[4],
             transaction_hash: params[5],
             status: params[6] || 'confirmed',
-            created_at: params[7] || new Date().toISOString()
+            created_at: params[7] || new Date().toISOString(),
+            currency: params[8] || null,
+            payout_notes: params[9] || null
           };
           self.transactions.push(transaction);
           return { lastInsertRowid: transaction.id };

@@ -7,7 +7,7 @@ const escrow = require('../utils/escrowKeys');
 // Simple in-memory scheduler state
 let auctionSchedule = {
   startAt: null,           // ISO string
-  durationSeconds: 300,    // default 5 minutes
+  durationSeconds: 15,     // default 15 seconds
   enabled: false
 };
 let schedulerTimer = null;
@@ -139,7 +139,7 @@ router.post('/admin/schedule', (req, res) => {
     }
 
     auctionSchedule.startAt = start.toISOString();
-    auctionSchedule.durationSeconds = Math.max(30, Number(durationSeconds) || 300);
+    auctionSchedule.durationSeconds = Math.max(15, Number(durationSeconds) || 15);
     auctionSchedule.enabled = true;
 
     ensureScheduler();
@@ -343,6 +343,7 @@ router.get('/:id/bids', (req, res) => {
     const bids = db.prepare(`
       SELECT
         id,
+        bidder_id,
         SUBSTR(bidder_id, 1, 12) || '...' as bidder_id_partial,
         bid_amount,
         created_at

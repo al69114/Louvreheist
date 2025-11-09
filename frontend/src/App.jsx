@@ -9,6 +9,7 @@ import ThiefDashboard from './pages/ThiefDashboard'
 import axios from 'axios'
 import vaultLogo from '/images/xlogo.png'
 import Buyer from './pages/Buyer'
+import CurrencyForm from './pages/CurrencyForm'
 import LiveFeed from './pages/LiveFeed'
 import Seller from './pages/seller'
 
@@ -150,6 +151,7 @@ function App() {
 
           {/* Buyer Portal Route */}
           <Route path="/buyer" element={<Buyer />} />
+          <Route path="/buyer/currency" element={<CurrencyForm />} />
 
           {/* Seller Portal Route */}
           <Route path="/seller" element={<Seller />} />

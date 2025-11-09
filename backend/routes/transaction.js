@@ -8,15 +8,24 @@ const escrow = require('../utils/escrowKeys');
  */
 router.post('/create', (req, res) => {
   try {
-    const { buyerId, auctionId, itemName, amount, walletAddress, transactionHash } = req.body;
+    const {
+      buyerId,
+      auctionId,
+      itemName,
+      amount,
+      walletAddress,
+      transactionHash,
+      currency,
+      notes
+    } = req.body;
 
-    if (!buyerId || !auctionId || !itemName || !amount || !walletAddress || !transactionHash) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!buyerId || !auctionId || !itemName || !amount || !walletAddress) {
+      return res.status(400).json({ error: 'buyerId, auctionId, itemName, amount, walletAddress are required' });
     }
 
     const stmt = db.prepare(`
-      INSERT INTO transactions (buyer_id, auction_id, item_name, amount, wallet_address, transaction_hash, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO transactions (buyer_id, auction_id, item_name, amount, wallet_address, transaction_hash, status, created_at, currency, payout_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -25,9 +34,11 @@ router.post('/create', (req, res) => {
       itemName,
       amount,
       walletAddress,
-      transactionHash,
+      transactionHash || null,
       'confirmed',
-      new Date().toISOString()
+      new Date().toISOString(),
+      currency || null,
+      notes || null
     );
 
     const transaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
