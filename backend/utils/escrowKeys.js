@@ -36,7 +36,9 @@ function ensureRecord(auctionId, sellerId) {
       created_at: now(),
       updated_at: now(),
       purchase_generated_at: null,
-      released_at: null
+      released_at: null,
+      item_synced_at: null,
+      purchase_synced_at: null
     };
     db.escrow_records.push(record);
   } else if (sellerId && !record.seller_id) {
@@ -60,7 +62,9 @@ function sanitize(record, opts = {}) {
     releasedAt: record.released_at,
     hasItemKey: Boolean(record.item_key),
     hasPurchaseKey: Boolean(record.purchase_key),
-    transactionId: record.transaction_id
+    transactionId: record.transaction_id,
+    itemSyncedAt: record.item_synced_at,
+    purchaseSyncedAt: record.purchase_synced_at
   };
 
   if (opts.includeKeys) {
@@ -77,6 +81,7 @@ function ensureItemKey(auctionId, sellerId) {
   const record = ensureRecord(auctionId, sellerId);
   if (!record.item_key) {
     record.item_key = generateKey();
+    record.item_synced_at = null;
   }
   record.updated_at = now();
   if (!record.status) record.status = 'awaiting_purchase';
@@ -91,6 +96,7 @@ function issuePurchaseKey(auctionId, buyerId, transactionId) {
   record.status = 'awaiting_release';
   record.purchase_generated_at = now();
   record.updated_at = record.purchase_generated_at;
+  record.purchase_synced_at = null;
 
   return {
     purchaseKey: record.purchase_key,
@@ -121,7 +127,7 @@ function getStatus(auctionId) {
 
 function listPendingPurchases() {
   return (db.escrow_records || [])
-    .filter((record) => record.status === 'awaiting_release' && record.purchase_key)
+    .filter((record) => record.status === 'awaiting_release' && record.purchase_key && !record.purchase_synced_at)
     .map((record) => sanitize(record, { includeKeys: true }));
 }
 
@@ -138,6 +144,30 @@ function resetEscrow(auctionId) {
   return sanitize(record, { includeKeys: true });
 }
 
+function markItemSynced(auctionId) {
+  const record = findRecord(auctionId);
+  if (record) {
+    record.item_synced_at = now();
+    record.updated_at = record.item_synced_at;
+  }
+  return sanitize(record);
+}
+
+function markPurchaseSynced(auctionId) {
+  const record = findRecord(auctionId);
+  if (record) {
+    record.purchase_synced_at = now();
+    record.updated_at = record.purchase_synced_at;
+  }
+  return sanitize(record);
+}
+
+function listPendingItemKeys() {
+  return (db.escrow_records || [])
+    .filter((record) => record.item_key && !record.item_synced_at)
+    .map((record) => sanitize(record, { includeKeys: true }));
+}
+
 module.exports = {
   ensureItemKey,
   issuePurchaseKey,
@@ -145,5 +175,8 @@ module.exports = {
   getStatus,
   listPendingPurchases,
   resetEscrow,
-  findRecord
+  findRecord,
+  listPendingItemKeys,
+  markItemSynced,
+  markPurchaseSynced
 };

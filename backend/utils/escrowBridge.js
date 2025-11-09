@@ -35,6 +35,8 @@ const port = new SerialPort({
 });
 
 let readBuffer = '';
+const inFlightItem = new Set();
+const inFlightPurchase = new Set();
 
 port.on('open', () => {
   console.log(`🔌 Serial bridge connected on ${SERIAL_PATH} @ ${SERIAL_BAUD} baud`);
@@ -57,10 +59,48 @@ port.on('error', (err) => {
 
 async function handleSerialLine(line) {
   console.log(`🔁 ${line}`);
+
+  if (line.startsWith('OK_ITEM:')) {
+    const auctionId = line.replace('OK_ITEM:', '').trim();
+    if (!auctionId) return;
+    [...inFlightItem].forEach((key) => {
+      if (key.startsWith(`${auctionId}-`)) inFlightItem.delete(key);
+    });
+    try {
+      await axios.post(
+        `${API_BASE}/api/escrow/device/item-ack`,
+        { auctionId },
+        { headers: { 'x-escrow-secret': DEVICE_SECRET } }
+      );
+    } catch (error) {
+      console.error('Failed to ack item key sync:', error.message);
+    }
+    return;
+  }
+
+  if (line.startsWith('OK_ADD:')) {
+    const auctionId = line.replace('OK_ADD:', '').trim();
+    if (!auctionId) return;
+    inFlightPurchase.delete(auctionId);
+    try {
+      await axios.post(
+        `${API_BASE}/api/escrow/device/purchase-ack`,
+        { auctionId },
+        { headers: { 'x-escrow-secret': DEVICE_SECRET } }
+      );
+    } catch (error) {
+      console.error('Failed to ack purchase key sync:', error.message);
+    }
+    return;
+  }
+
   if (!line.startsWith('OK_RELEASE:')) return;
 
   const payload = line.replace('OK_RELEASE:', '');
-  const [auctionId, purchaseKey] = payload.split(':');
+  const parts = payload.split(':');
+  const auctionId = parts[0];
+  const purchaseKey = parts[1];
+  const itemKey = parts[2];
   if (!auctionId || !purchaseKey) {
     console.warn('Malformed OK_RELEASE line. Skipping.');
     return;
@@ -69,7 +109,7 @@ async function handleSerialLine(line) {
   try {
     await axios.post(
       `${API_BASE}/api/escrow/device/confirm`,
-      { auctionId, purchaseKey },
+      { auctionId, purchaseKey, itemKey },
       { headers: { 'x-escrow-secret': DEVICE_SECRET } }
     );
     console.log(`✅ Release confirmed for auction ${auctionId}`);
@@ -86,6 +126,8 @@ async function pushPendingPurchases() {
 
     const pending = response.data?.pending || [];
     pending.forEach((record) => {
+      if (inFlightPurchase.has(record.auctionId)) return;
+      inFlightPurchase.add(record.auctionId);
       if (!record.purchaseKey) return;
       const keyUpper = record.purchaseKey.toUpperCase();
       const cmd = `ADD:${record.auctionId}:${keyUpper}\n`;
@@ -97,5 +139,53 @@ async function pushPendingPurchases() {
   }
 }
 
-setInterval(pushPendingPurchases, POLL_INTERVAL_MS);
+async function pushPendingItems() {
+  try {
+    const response = await axios.get(`${API_BASE}/api/escrow/item-pending`, {
+      headers: { 'x-escrow-secret': DEVICE_SECRET }
+    });
+
+    const pending = response.data?.pending || [];
+    pending.forEach((record) => {
+      const key = `${record.auctionId}-${record.itemKey}`;
+      if (inFlightItem.has(key)) return;
+      inFlightItem.add(key);
+      if (!record.itemKey) return;
+      const keyUpper = record.itemKey.toUpperCase();
+      const cmd = `ITEM:${record.auctionId}:${keyUpper}\n`;
+      console.log(`➡️  ${cmd.trim()}`);
+      port.write(cmd);
+    });
+  } catch (error) {
+    console.error('Failed to fetch pending item keys:', error.message);
+  }
+}
+
+setInterval(() => {
+  pushPendingItems();
+  pushPendingPurchases();
+}, POLL_INTERVAL_MS);
+
+pushPendingItems();
 pushPendingPurchases();
+
+function resetDevice() {
+  try {
+    if (port && port.readable) {
+      port.write('RESET\n');
+      console.log('♻️  Sent RESET command to escrow controller');
+    }
+  } catch (error) {
+    console.error('Failed to send RESET command:', error.message);
+  }
+}
+
+function handleShutdown(signal) {
+  console.log(`\nReceived ${signal}. Resetting hardware escrow and shutting down...`);
+  resetDevice();
+  setTimeout(() => process.exit(0), 250);
+}
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.on('exit', () => resetDevice());
