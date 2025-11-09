@@ -53,6 +53,16 @@ router.get('/pending', (req, res) => {
   }
 });
 
+router.get('/item-pending', (req, res) => {
+  if (!requireDeviceSecret(req, res)) return;
+  try {
+    const pending = escrow.listPendingItemKeys();
+    res.json({ success: true, pending });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/device/confirm', (req, res) => {
   if (!requireDeviceSecret(req, res)) return;
   try {
@@ -68,6 +78,34 @@ router.post('/device/confirm', (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/device/item-ack', (req, res) => {
+  if (!requireDeviceSecret(req, res)) return;
+  try {
+    const { auctionId } = req.body || {};
+    if (!auctionId) {
+      return res.status(400).json({ success: false, error: 'auctionId required' });
+    }
+    const record = escrow.markItemSynced(auctionId);
+    res.json({ success: true, escrow: record });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/device/purchase-ack', (req, res) => {
+  if (!requireDeviceSecret(req, res)) return;
+  try {
+    const { auctionId } = req.body || {};
+    if (!auctionId) {
+      return res.status(400).json({ success: false, error: 'auctionId required' });
+    }
+    const record = escrow.markPurchaseSynced(auctionId);
+    res.json({ success: true, escrow: record });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

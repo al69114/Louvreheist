@@ -1,6 +1,7 @@
 #include <EEPROM.h>
 #include <Arduino.h>
 #include <ctype.h>
+#include <string.h>
 
 #ifdef HEX
 #undef HEX
@@ -12,22 +13,24 @@
 #define AUCTION_ID_LEN 12
 #define TOKEN_LEN 32 // 32 bytes (64 hex chars)
 
-// Each entry occupies 1 + 12 + 32 + 2 = 47 bytes, padded to 48
-#define ENTRY_SIZE 48
-
 struct Entry {
   uint8_t used;                 // 0 = free, 1 = used
   char auctionId[AUCTION_ID_LEN + 1];
-  uint8_t token[TOKEN_LEN];
+  uint8_t itemKey[TOKEN_LEN];
+  uint8_t purchaseKey[TOKEN_LEN];
+  bool hasItemKey;
+  bool hasPurchaseKey;
   uint16_t crc;
 };
+
+const uint16_t ENTRY_SIZE = sizeof(Entry);
 
 Entry entryBuffer;
 
 // ----------------------------------------------------
 // CRC helper
 // ----------------------------------------------------
-uint16_t computeCRC(uint8_t *data, uint16_t len) {
+uint16_t computeCRC(const uint8_t *data, uint16_t len) {
   uint16_t crc = 0xFFFF;
   for (int i = 0; i < len; i++) {
     crc ^= (uint16_t)data[i] << 8;
@@ -39,6 +42,10 @@ uint16_t computeCRC(uint8_t *data, uint16_t len) {
     }
   }
   return crc;
+}
+
+uint16_t entryCrc(const Entry &entry) {
+  return computeCRC(reinterpret_cast<const uint8_t *>(&entry), sizeof(Entry) - sizeof(entry.crc));
 }
 
 // ----------------------------------------------------
@@ -56,7 +63,8 @@ int findSlotByAuction(const String &id) {
   for (int i = 0; i < MAX_AUCTIONS; i++) {
     int addr = i * ENTRY_SIZE;
     EEPROM.get(addr, entryBuffer);
-    if (entryBuffer.used == 1 && String(entryBuffer.auctionId) == id) return i;
+    uint16_t crcCheck = entryCrc(entryBuffer);
+    if (entryBuffer.used == 1 && crcCheck == entryBuffer.crc && String(entryBuffer.auctionId) == id) return i;
   }
   return -1;
 }
@@ -70,23 +78,36 @@ void clearAllSlots() {
   for (int i = 0; i < MAX_AUCTIONS; i++) eraseSlot(i);
 }
 
+void persistEntry(int slot, Entry &entry) {
+  entry.crc = entryCrc(entry);
+  int addr = slot * ENTRY_SIZE;
+  EEPROM.put(addr, entry);
+}
+
 // ----------------------------------------------------
 // Entry I/O
 // ----------------------------------------------------
-void writeEntry(int slot, const String &auctionId, const uint8_t *token) {
-  int addr = slot * ENTRY_SIZE;
-  Entry e;
-  e.used = 1;
-  strncpy(e.auctionId, auctionId.c_str(), AUCTION_ID_LEN);
-  for (int i = 0; i < TOKEN_LEN; i++) e.token[i] = token[i];
-  e.crc = computeCRC((uint8_t *)&e, sizeof(e) - 2);
-  EEPROM.put(addr, e);
+void writePurchaseKey(int slot, const String &auctionId, const uint8_t *token) {
+  Entry entry;
+  bool existing = readEntry(slot);
+  if (existing) {
+    entry = entryBuffer;
+  } else {
+    memset(&entry, 0, sizeof(entry));
+    entry.used = 1;
+    strncpy(entry.auctionId, auctionId.c_str(), AUCTION_ID_LEN);
+    entry.auctionId[AUCTION_ID_LEN] = '\0';
+  }
+
+  for (int i = 0; i < TOKEN_LEN; i++) entry.purchaseKey[i] = token[i];
+  entry.hasPurchaseKey = true;
+  persistEntry(slot, entry);
 }
 
 bool readEntry(int slot) {
   int addr = slot * ENTRY_SIZE;
   EEPROM.get(addr, entryBuffer);
-  uint16_t crcCheck = computeCRC((uint8_t *)&entryBuffer, sizeof(entryBuffer) - 2);
+  uint16_t crcCheck = entryCrc(entryBuffer);
   return (crcCheck == entryBuffer.crc && entryBuffer.used == 1);
 }
 
@@ -130,16 +151,35 @@ void handleAdd(String id, String hexToken) {
     return;
   }
 
-  int existing = findSlotByAuction(id);
-  if (existing >= 0) eraseSlot(existing);
-
-  int slot = findFreeSlot();
+  int slot = findSlotByAuction(id);
+  if (slot < 0) {
+    slot = findFreeSlot();
+  }
   if (slot < 0) {
     Serial.println("ERR_FULL");
     return;
   }
-  writeEntry(slot, id, token);
+  writePurchaseKey(slot, id, token);
   Serial.print("OK_ADD:");
+  Serial.println(id);
+}
+
+void handleItem(String id, String hexToken) {
+  uint8_t token[TOKEN_LEN];
+  if (!hexToBytes(hexToken, token)) {
+    Serial.println("ERR_FORMAT");
+    return;
+  }
+
+  int slot = findSlotByAuction(id);
+  if (slot < 0) slot = findFreeSlot();
+  if (slot < 0) {
+    Serial.println("ERR_FULL");
+    return;
+  }
+
+  writeItemKey(slot, id, token);
+  Serial.print("OK_ITEM:");
   Serial.println(id);
 }
 
@@ -161,13 +201,25 @@ void handleBuy(String id, String hexToken) {
     return;
   }
 
-  if (tokensMatch(entryBuffer.token, token)) {
+  if (!entryBuffer.hasPurchaseKey) {
+    Serial.println("ERR_NO_PURCHASE_KEY");
+    return;
+  }
+
+  if (tokensMatch(entryBuffer.purchaseKey, token)) {
     char purchaseHex[TOKEN_LEN * 2 + 1];
-    tokenToHex(entryBuffer.token, purchaseHex);
+    tokenToHex(entryBuffer.purchaseKey, purchaseHex);
     Serial.print("OK_RELEASE:");
     Serial.print(id);
     Serial.print(':');
-    Serial.println(purchaseHex);
+    Serial.print(purchaseHex);
+    if (entryBuffer.hasItemKey) {
+      char itemHex[TOKEN_LEN * 2 + 1];
+      tokenToHex(entryBuffer.itemKey, itemHex);
+      Serial.print(':');
+      Serial.print(itemHex);
+    }
+    Serial.println();
     digitalWrite(RELEASE_PIN, HIGH);
     delay(500);
     digitalWrite(RELEASE_PIN, LOW);
@@ -197,9 +249,15 @@ void handleList() {
   for (int i = 0; i < MAX_AUCTIONS; i++) {
     int addr = i * ENTRY_SIZE;
     EEPROM.get(addr, entryBuffer);
-    if (entryBuffer.used == 1) {
+    uint16_t crcCheck = entryCrc(entryBuffer);
+    if (entryBuffer.used == 1 && crcCheck == entryBuffer.crc) {
       Serial.print("  ");
-      Serial.println(entryBuffer.auctionId);
+      Serial.print(entryBuffer.auctionId);
+      Serial.print(" (item=");
+      Serial.print(entryBuffer.hasItemKey ? "Y" : "N");
+      Serial.print(", purchase=");
+      Serial.print(entryBuffer.hasPurchaseKey ? "Y" : "N");
+      Serial.println(")");
     }
   }
 }
@@ -229,6 +287,9 @@ void loop() {
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
+    if (cmd.length() == 0) {
+      continue;
+    }
 
     if (cmd.startsWith("ADD:")) {
       int c1 = cmd.indexOf(':', 4);
@@ -237,9 +298,16 @@ void loop() {
       String token = cmd.substring(c1 + 1);
       handleAdd(id, token);
     }
+    else if (cmd.startsWith("ITEM:")) {
+      int c1 = cmd.indexOf(':', 5);
+      if (c1 == -1) { Serial.println("ERR_SYNTAX"); continue; }
+      String id = cmd.substring(5, c1);
+      String token = cmd.substring(c1 + 1);
+      handleItem(id, token);
+    }
     else if (cmd.startsWith("BUY:")) {
       int c1 = cmd.indexOf(':', 4);
-      if (c1 == -1) { Serial.println("ERR_SYNTAX"); return; }
+      if (c1 == -1) { Serial.println("ERR_SYNTAX"); continue; }
       String id = cmd.substring(4, c1);
       String token = cmd.substring(c1 + 1);
       handleBuy(id, token);
@@ -255,7 +323,24 @@ void loop() {
       handleReset();
     }
     else {
-      Serial.println("ERR_UNKNOWN_CMD");
+      Serial.print("ERR_UNKNOWN_CMD:");
+      Serial.println(cmd);
     }
   }
+}
+void writeItemKey(int slot, const String &auctionId, const uint8_t *token) {
+  Entry entry;
+  bool existing = readEntry(slot);
+  if (existing) {
+    entry = entryBuffer;
+  } else {
+    memset(&entry, 0, sizeof(entry));
+    entry.used = 1;
+    strncpy(entry.auctionId, auctionId.c_str(), AUCTION_ID_LEN);
+    entry.auctionId[AUCTION_ID_LEN] = '\0';
+  }
+
+  for (int i = 0; i < TOKEN_LEN; i++) entry.itemKey[i] = token[i];
+  entry.hasItemKey = true;
+  persistEntry(slot, entry);
 }

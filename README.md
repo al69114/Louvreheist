@@ -206,12 +206,12 @@ The application includes mock data for demonstration:
 
 ## 🔐 Hardware Escrow Integration
 
-The `Louvre-Random` Arduino sketch now stores 32-byte purchase keys and emits `OK_RELEASE:<auctionId>:<hexKey>` once a buyer enters a matching code. The web stack orchestrates that process with in-memory escrow records:
+The `Louvre-Random` Arduino sketch now caches both the item redemption key and the later purchase key so it can act as the final arbiter. The web stack orchestrates that process with in-memory escrow records:
 
-1. **Seller creates auction** → backend generates an `itemKey` and stores it off-chain.
+1. **Seller creates auction** → backend generates an `itemKey`, stores it off-chain, and the bridge pushes `ITEM:<auctionId>:<itemKey>` to the Arduino until it replies with `OK_ITEM:<auctionId>`.
 2. **Buyer wins & pays** → `/api/transaction/create` logs the payment and issues a 32-byte `purchaseKey`.
-3. **Hardware bridge** continuously calls `/api/escrow/pending`, pushes `ADD:<auctionId>:<purchaseKey>` to the Arduino, and waits for `OK_RELEASE`.
-4. **Arduino match** → the bridge POSTs `/api/escrow/device/confirm` so the site can reveal the item key to the buyer and trigger the payout workflow for the seller.
+3. **Hardware bridge** calls both `/api/escrow/item-pending` and `/api/escrow/pending`, pushing `ITEM:` (if required) and `ADD:<auctionId>:<purchaseKey>` commands to the Arduino and waiting for `OK_ITEM` / `OK_ADD` acknowledgements.
+4. **Arduino match** → once the buyer enters the correct purchase key, the firmware emits `OK_RELEASE:<auctionId>:<purchaseKey>:<itemKey>`, the bridge POSTs `/api/escrow/device/confirm`, and the site surfaces the item key to the buyer/seller dashboards.
 
 ### Running the bridge script
 
