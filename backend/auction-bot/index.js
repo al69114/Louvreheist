@@ -299,7 +299,7 @@ bot.on('callback_query', async (callbackQuery) => {
 
       // Notify the original user
       bot.sendMessage(userId, 
-        `Your request for a ${type} code was APPROVED! 🎉\n\nYour new code is: \n\n**${code}**`,
+        `Your request for a ${type} code was APPROVED! 🎉\n\nYour new code is: \n\n**${code}**\n\nLog in with this link: http://172.20.185.211:3000/seller`,
         { parse_mode: 'Markdown' }
       );
 
